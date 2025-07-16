@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Language" content="en" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flower Shop</title>
+  <meta name="description" content="Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available." />
+  <meta name="google" content="notranslate" />
+  <style>
+    :root {
+      --clr-bg: #E3E5E2;
+      --clr-pocket: #CECECE;
+      --clr-bubble-a: #34C759;
+      --clr-bubble-b: #007AFF;
+      --clr-text-dark: #1a1a1a;
+      --clr-text-light: #ffffff;
+      --max-width: 1200px;
+      --radius-pocket: 16px;
+      --radius-bubble: 22px;
+      --space-section: clamp(3rem, 6vw, 6rem);
+      --space-stack: 1.5rem;
+      --shadow-pocket: 0 2px 6px rgba(0,0,0,.08);
+    }
+
+    html {scroll-behavior:smooth;}
+    body {
+      margin:0;
+      font-family:system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      line-height:1.5;
+      color:var(--clr-text-dark);
+      background:#fff;
+    }
+    img{max-width:100%;height:auto;display:block;}
+
+    /* Utility wrappers */
+    .wrapper {width: min(var(--max-width), 100% - 2rem);margin-inline:auto;}
+    section {padding-block:var(--space-section);}    
+    section h2 {margin-top:0;font-size:clamp(1.75rem,4vw,2.5rem);line-height:1.2;text-align:center;}
+
+    /* TITLE / HERO */
+    .hero {position:relative;min-height:min(80vh,900px);padding:0;display:grid;place-items:center;overflow:hidden;background:#000;}
+    .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;}
+    .hero__overlay{position:relative;z-index:1;color:#fff;text-align:center;padding:2rem;max-width:90ch;text-shadow:0 2px 8px rgba(0,0,0,.75);}    
+    .hero__overlay h1{margin:0;font-size:clamp(2.5rem,8vw,5rem);line-height:1.1;font-weight:700;}
+    .hero__overlay p{font-size:clamp(1.125rem,2vw,1.5rem);margin-top:1rem;}
+
+    /* INTRO */
+    #intro{background:var(--clr-bg);}    
+    .intro-pocket{
+      background:var(--clr-pocket);
+      border-radius:var(--radius-pocket);
+      padding:clamp(1.5rem,3vw,2.5rem);
+      box-shadow:var(--shadow-pocket);
+      margin-inline:auto;
+      text-align:center;
+      width:100%;        /* match Features width */
+      max-width:none;
+    }
+    .intro-pocket p{
+      font-size:clamp(1rem,1.8vw,1.25rem);
+      line-height:1.35;
+    }
+    .intro-actions{margin-top:var(--space-stack);display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;}
+
+    /* iPhone message-like buttons */
+    .msg-btn{position:relative;display:inline-block;padding:.75rem 1.25rem;border-radius:var(--radius-bubble);font-size:1rem;line-height:1.2;text-decoration:none;color:var(--clr-text-light);font-weight:600;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.25),0 2px 8px rgba(0,0,0,.15) inset;transition:transform .1s ease, box-shadow .1s ease;}
+    .msg-btn:active{transform:scale(.96);}    
+    .msg-btn--a{background:var(--clr-bubble-a);} /* green */
+    .msg-btn--b{background:var(--clr-bubble-b);} /* blue */
+
+    /* TECHNICAL */
+    #technical{background:#fff;}
+    .tech-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1.5rem;margin-top:var(--space-stack);}    
+    .tech-card{background:var(--clr-pocket);border-radius:var(--radius-pocket);padding:1.5rem;box-shadow:var(--shadow-pocket);}    
+    .tech-card h3{margin-top:0;margin-bottom:.75rem;font-size:1.25rem;text-align:center;line-height:1.2;}
+    .tech-card ul{margin:0;padding-left:1.25rem;}
+    .tech-card li{margin-bottom:.5rem;}
+
+    /* VIDEO */
+    #video{background:var(--clr-bg);text-align:center;}
+    #video .video-placeholder{margin-top:var(--space-stack);background:var(--clr-pocket);padding:4rem 1rem;border-radius:var(--radius-pocket);box-shadow:var(--shadow-pocket);font-size:1.5rem;font-weight:600;}
+
+    /* ABOUT */
+    #about{background:#fff;text-align:center;}
+    #about .about-placeholder{
+      margin-top:var(--space-stack);
+      width:100%;        /* match Features width */
+      max-width:none;
+      margin-inline:auto;
+      color:#666;
+    }
+
+    /* GALLERY (slider version) */
+    #gallery{background:var(--clr-bg);}
+    .gallery-slider{position:relative;max-width:min(100%,900px);margin-inline:auto;}
+    .gallery-viewport{position:relative;overflow:hidden;width:100%;height:auto;max-height:70vh;cursor:pointer;}
+    .gallery-slides{display:flex;transition:transform .6s ease;touch-action:pan-y;}
+    .gallery-slide{flex:0 0 100%;display:grid;place-items:center;padding:0 0.25rem;box-sizing:border-box;}
+    .gallery-slide img{width:100%;height:100%;max-height:70vh;object-fit:contain;border-radius:var(--radius-pocket);box-shadow:var(--shadow-pocket);background:#0002;}
+    .gallery-dots{display:flex;justify-content:center;align-items:center;gap:.5rem;margin-top:1rem;}
+    .gallery-dot{width:.75rem;height:.75rem;border-radius:50%;background:rgba(0,0,0,.25);border:none;cursor:pointer;padding:0;line-height:0;font-size:0;}
+    .gallery-dot[aria-current="true"],.gallery-dot.active{background:rgba(0,0,0,.8);}    
+    .gallery-dot:focus-visible{outline:2px solid #000;outline-offset:2px;}
+
+    /* Small, low-visibility arrows */
+    .gallery-arrow-btn{
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      border:none;
+      padding:0;
+      width:2rem;
+      height:2rem;
+      background:transparent;
+      color:rgba(255,255,255,.15);
+      font-size:2rem;
+      line-height:1;
+      cursor:pointer;
+      transition:color .15s ease;
+      z-index:2;
+    }
+    .gallery-arrow-btn:hover,
+    .gallery-arrow-btn:focus-visible{
+      color:rgba(255,255,255,.85);
+      outline:none;
+    }
+    .gallery-arrow-prev{left:.5rem;}
+    .gallery-arrow-next{right:.5rem;}
+
+    /* CONTACTS */
+    #contacts{background:#fff;}
+    .contacts-card{background:var(--clr-pocket);border-radius:var(--radius-pocket);padding:2rem 1.5rem;box-shadow:var(--shadow-pocket);max-width:600px;margin-inline:auto;text-align:center;font-size:1.125rem;}
+    .contacts-card p{margin:.5rem 0;}
+    .contacts-card a{color:inherit;text-decoration:none;font-weight:700;}
+    .contacts-card a:hover{text-decoration:underline;}
+
+    /* Simple footer */
+    footer{background:#000;color:#fff;text-align:center;padding:2rem 1rem;font-size:.875rem;}
+    footer a{color:#fff;text-decoration:underline;}
+  </style>
+</head>
+<body>
+  <!-- TITLE / HERO SECTION -->
+  <header id="title" class="hero" role="banner" aria-label="Flower Shop Title Image">
+    <img src="img/img1.png" alt="Beautiful flowers hero image" />
+    <div class="hero__overlay">
+      <h1>More Sales. Less Effort.</h1>
+      <p>Smart, beautiful, and always open – your modern flower vending solution.</p>
+    </div>
+  </header>
+
+  <!-- INTRO SECTION -->
+  <section id="intro" aria-label="Intro">
+    <div class="wrapper"><div class="intro-pocket">
+        <p>How many customers have walked past your closed doors at 10 pm, their purchases lost forever? It doesn't have to be that way. Soon, every shop will offer 24/7 access&mdash;staff or no staff. Will yours?</p>
+        <div class="intro-actions" role="group" aria-label="Primary actions">
+          <a class="msg-btn msg-btn--a" href="#video">See how it works</a>
+          <a class="msg-btn msg-btn--b" href="#contacts">Contact us</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECHNICAL SECTION -->
+  <section id="technical" aria-labelledby="technical-heading">
+    <div class="wrapper">
+      <h2 id="technical-heading">Features</h2>
+      <div class="tech-grid">
+        <!-- Card 1 -->
+        <article class="tech-card" aria-labelledby="tech-technik">
+          <h3 id="tech-technik">🔧 Technology</h3>
+          <ul>
+            <li>LED lighting per compartment / global</li>
+            <li>5 light modes</li>
+            <li>Active cooling system</li>
+            <li>Remote monitoring via Telegram bot</li>
+          </ul>
+        </article>
+        <!-- Card 2 -->
+        <article class="tech-card" aria-labelledby="tech-bedienung">
+          <h3 id="tech-bedienung">🛒 Service &amp; Sales</h3>
+          <ul>
+            <li>Touchscreen operation</li>
+            <li>Card payment</li>
+            <li>Digital price tags</li>
+            <li>Advance reservation system</li>
+            <li>Available 24/7</li>
+          </ul>
+        </article>
+        <!-- Card 3 -->
+        <article class="tech-card" aria-labelledby="tech-design">
+          <h3 id="tech-design">🎨 Design &amp; Benefits</h3>
+          <ul>
+            <li>Customizable design</li>
+            <li>Already in use in Germany</li>
+            <li>Made in the EU</li>
+            <li>Competitive price</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIDEO SECTION -->
+  <section id="video" aria-label="Video">
+    <div class="wrapper"><div class="video-placeholder" aria-label="Video placeholder">Video coming soon…</div>
+    </div>
+  </section>
+
+  <!-- ABOUT SECTION -->
+  <section id="about" aria-labelledby="about-heading">
+    <div class="wrapper">
+      <h2 id="about-heading">About Us</h2>
+      <div class="about-placeholder">
+        We are a small team of engineers and designers passionate about helping shop owners unlock after-hours sales. Born from the idea that every shop should stay open 24/7 without extra staff, we build vending systems that blend smart technology with elegant design. From dynamic LED lighting to active cooling and Telegram monitoring, our machines are crafted to keep products fresh and customers delighted—even when the doors are closed.
+      </div>
+    </div>
+  </section>
+
+  <!-- GALLERY SECTION -->
+  <section id="gallery" aria-labelledby="gallery-heading">
+    <div class="wrapper">
+      <h2 id="gallery-heading">Gallery</h2>
+
+      <div class="gallery-slider" id="gallery-slider">
+        <!-- tiny arrow buttons -->
+        <button class="gallery-arrow-btn gallery-arrow-prev" type="button" aria-label="Previous slide" tabindex="0">‹</button>
+        <button class="gallery-arrow-btn gallery-arrow-next" type="button" aria-label="Next slide" tabindex="0">›</button>
+
+        <div class="gallery-viewport" id="gallery-viewport">
+          <div class="gallery-slides" id="gallery-slides"></div>
+        </div>
+        <div class="gallery-dots" id="gallery-dots" role="tablist" aria-label="Gallery slide selector"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACTS SECTION -->
+  <section id="contacts" aria-labelledby="contacts-heading">
+    <div class="wrapper">
+      <h2 id="contacts-heading">Contacts</h2>
+      <div class="contacts-card">
+        <p>Email: <a id="contact-email" href="mailto:bgrebstelis@gmail.com">bgrebstelis@gmail.com</a></p>
+        <p>Phone (English / Latvian / Russian): <a href="tel:+37126639072">+371 26639072</a></p>
+        <p>Aija (German): <a href="tel:+4915782920110">+49 1578 2920110</a></p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    &copy; <span id="year"></span> Flower Shop Automation. All rights reserved.
+  </footer>
+
+  <script>
+    // ===== Force load at top, disable scroll restoration, remove hash =====
+    (function ensureTopOnLoad(){
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+      // If URL has a hash, strip it (prevents auto-jump)
+      if (window.location.hash) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      // Scroll to top ASAP
+      window.scrollTo(0,0);
+      // Extra safety after layout paint
+      window.addEventListener('load', () => window.scrollTo(0,0));
+    })();
+
+    // Update footer year
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // ====================== GALLERY SLIDER =======================
+    const GALLERY_IMAGES = [
+      'gallery/img1.png',
+      'gallery/img2.png',
+      'gallery/img3.png',
+      'gallery/img4.png'
+    ];
+    const AUTO_INTERVAL_MS = 5000; // auto-advance every 5s
+
+    const slidesWrap = document.getElementById('gallery-slides');
+    const dotsWrap   = document.getElementById('gallery-dots');
+    const slider     = document.getElementById('gallery-slider');
+    const viewport   = document.getElementById('gallery-viewport');
+    const btnPrev    = slider.querySelector('.gallery-arrow-prev');
+    const btnNext    = slider.querySelector('.gallery-arrow-next');
+
+    let current = 0;
+    let autoTimer = null;
+    let isPaused = false;
+
+    function buildSlides(){
+      GALLERY_IMAGES.forEach((src, idx) => {
+        const slide = document.createElement('div');
+        slide.className = 'gallery-slide';
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'Gallery image ' + (idx+1);
+        slide.appendChild(img);
+        slidesWrap.appendChild(slide);
+
+        const dot = document.createElement('button');
+        dot.className = 'gallery-dot';
+        dot.type = 'button';
+        dot.setAttribute('aria-label','Go to slide '+(idx+1));
+        dot.addEventListener('click',() => goTo(idx,true));
+        dotsWrap.appendChild(dot);
+      });
+    }
+
+    function updateDots(){
+      [...dotsWrap.children].forEach((dot,i)=>{
+        if(i===current){
+          dot.classList.add('active');
+          dot.setAttribute('aria-current','true');
+        } else {
+          dot.classList.remove('active');
+          dot.removeAttribute('aria-current');
+        }
+      });
+    }
+
+    function goTo(index, userInitiated=false){
+      const count = GALLERY_IMAGES.length;
+      current = (index + count) % count;
+      const offset = -current * 100; // percent translate
+      slidesWrap.style.transform = `translateX(${offset}%)`;
+      updateDots();
+      if(userInitiated) restartAuto();
+    }
+
+    function next(){goTo(current+1);}
+    function prev(){goTo(current-1);}
+
+    function startAuto(){
+      stopAuto();
+      autoTimer = setInterval(()=>{if(!isPaused) next();}, AUTO_INTERVAL_MS);
+    }
+    function stopAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}}
+    function restartAuto(){startAuto();}
+
+    // Pause controls (hover + pointer down for mobile)
+    function setPaused(state){isPaused = state;}
+    slider.addEventListener('mouseenter',()=>setPaused(true));
+    slider.addEventListener('mouseleave',()=>setPaused(false));
+    slider.addEventListener('pointerdown',()=>setPaused(true));
+    slider.addEventListener('pointerup',()=>setPaused(false));
+    slider.addEventListener('pointercancel',()=>setPaused(false));
+
+    // Arrow buttons
+    btnPrev.addEventListener('click',()=>{prev();restartAuto();});
+    btnNext.addEventListener('click',()=>{next();restartAuto();});
+
+    // Click anywhere in left/right half of the viewport
+    viewport.addEventListener('click', e => {
+      const rect = viewport.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x < rect.width / 2) {
+        prev();
+      } else {
+        next();
+      }
+      restartAuto();
+    });
+
+    // Build & init
+    if(slidesWrap && dotsWrap){
+      buildSlides();
+      goTo(0);
+      startAuto();
+    }
+  </script>
+</body>
+</html>

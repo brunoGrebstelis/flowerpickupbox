@@ -54,7 +54,7 @@
       box-shadow:var(--shadow-pocket);
       margin-inline:auto;
       text-align:center;
-      width:100%; /* match Features width */
+      /* width:100%;  REMOVED to prevent mobile overflow caused by padding beyond wrapper */
       max-width:none;
     }
     .intro-pocket p{
@@ -612,11 +612,7 @@
       mainBtn.setAttribute('aria-label', 'Change language (current: ' + lang.toUpperCase() + ')');
       document.getElementById('lang-widget').dataset.current = lang;
       // persist
-      try { localStorage.setItem('siteLang', lang); } catch(_){}
-
-      // If changing html lang causes unwanted Google translation popup, keep disabled:
-      // document.documentElement.lang = lang; // <- enable if you want
-    }
+      try { localStorage.setItem('siteLang', lang); } catch(_){}}
 
     // Build language menu (other 3 languages)
     function buildLangMenu(current){

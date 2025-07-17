@@ -137,6 +137,61 @@
     .contacts-card a{color:inherit;text-decoration:none;font-weight:700;}
     .contacts-card a:hover{text-decoration:underline;}
 
+    /* === Contact Form (CTA) === */
+    .contacts-card form {
+      margin-top: 1.75rem;
+      display: grid;
+      gap: 1rem;
+      max-width: 480px;
+      margin-inline: auto;
+      text-align: left;
+    }
+    .contacts-card .cf-field {}
+    .contacts-card label {
+      display: block;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: .25rem;
+    }
+    .contacts-card input,
+    .contacts-card textarea {
+      width: 100%;
+      padding: .75rem 1rem;
+      border-radius: var(--radius-pocket);
+      border: 1px solid rgba(0,0,0,.25);
+      font-size: 1rem;
+      color: var(--clr-text-dark);
+      background: #fff;
+      box-sizing: border-box;
+    }
+    .contacts-card textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+    .contacts-card .contact-form-actions {
+      text-align: center;
+      margin-top: .5rem;
+    }
+    .contacts-card .contact-form-actions .msg-btn {
+      width: 100%;
+      display: block;      /* make it fill the full field width */
+      text-align: center;  /* keep the label centered (optional) */
+    }
+    .contact-form-thanks {
+      margin-top: 1rem;
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius-pocket);  
+      background: rgba(0,0,0,.85);
+      color: #fff;
+      font-size: 1rem;
+      line-height: 1.2;
+      display: none;
+      cursor: pointer;
+      max-width: 480px;
+      margin-inline: auto;
+    }
+    .contact-form-thanks.show {display:block;}
+
     /* Simple footer */
     footer{background:#000;color:#fff;text-align:center;padding:2rem 1rem;font-size:.875rem;}
     footer a{color:#fff;text-decoration:underline;}
@@ -291,6 +346,30 @@
         <p><span id="i18n-contactEmailLabel">Email:</span> <a id="contact-email" href="mailto:bgrebstelis@gmail.com">bgrebstelis@gmail.com</a></p>
         <p><span id="i18n-contactPhoneLabel1">Phone (English / Latvian / Russian):</span> <a href="tel:+37126639072">+371 26639072</a></p>
         <p><span id="i18n-contactPhoneLabel2">Aija (German):</span> <a href="tel:+4915782920110">+49 1578 2920110</a></p>
+
+        <!-- CTA FORM -->
+        <form id="contact-form" action="https://formspree.io/f/xzzvzpbv" method="POST" novalidate>
+          <div class="cf-field">
+            <label id="i18n-formNameLabel" for="cf-name">Name</label>
+            <input id="cf-name" name="name" type="text" required autocomplete="name" />
+          </div>
+
+          <div class="cf-field">
+            <label id="i18n-formEmailLabel" for="cf-email">Email</label>
+            <input id="cf-email" name="email" type="email" required autocomplete="email" />
+          </div>
+
+          <div class="cf-field">
+            <label id="i18n-formMessageLabel" for="cf-message">Message</label>
+            <textarea id="cf-message" name="message" required></textarea>
+          </div>
+
+          <div class="contact-form-actions">
+            <button type="submit" class="msg-btn msg-btn--a" id="i18n-formSendBtn">Send</button>
+          </div>
+        </form>
+
+        <div id="contact-form-thanks" class="contact-form-thanks" role="status" aria-live="polite"></div>
       </div>
     </div>
   </section>
@@ -517,6 +596,11 @@
         contactEmailLabel: "Email:",
         contactPhoneLabel1: "Phone (English / Latvian / Russian):",
         contactPhoneLabel2: "Aija (German):",
+        formNameLabel: "Name",
+        formEmailLabel: "Email",
+        formMessageLabel: "Message",
+        formSendBtn: "Send",
+        formThankYou: "Thank you! We'll get to you as soon as possible.",
         footerRights: "All rights reserved."
       },
       lv: {
@@ -550,6 +634,11 @@
         contactEmailLabel: "E-pasts:",
         contactPhoneLabel1: "Tālr. (angļu / latviešu / krievu):",
         contactPhoneLabel2: "Aija (vācu):",
+        formNameLabel: "Vārds",
+        formEmailLabel: "E-pasts",
+        formMessageLabel: "Ziņa",
+        formSendBtn: "Sūtīt",
+        formThankYou: "Paldies! Sazināsimies ar jums pēc iespējas drīz.",
         footerRights: "Visas tiesības aizsargātas."
       },
       ru: {
@@ -583,6 +672,11 @@
         contactEmailLabel: "E-mail:",
         contactPhoneLabel1: "Тел. (английский / латышский / русский):",
         contactPhoneLabel2: "Айя (немецкий):",
+        formNameLabel: "Имя",
+        formEmailLabel: "E-mail",
+        formMessageLabel: "Сообщение",
+        formSendBtn: "Отправить",
+        formThankYou: "Спасибо! Мы свяжемся с вами как можно скорее.",
         footerRights: "Все права защищены."
       },
       de: {
@@ -616,6 +710,11 @@
         contactEmailLabel: "E-Mail:",
         contactPhoneLabel1: "Telefon (Englisch / Lettisch / Russisch):",
         contactPhoneLabel2: "Aija (Deutsch):",
+        formNameLabel: "Name",
+        formEmailLabel: "E-Mail",
+        formMessageLabel: "Nachricht",
+        formSendBtn: "Senden",
+        formThankYou: "Vielen Dank! Wir melden uns so schnell wie möglich.",
         footerRights: "Alle Rechte vorbehalten."
       }
     };
@@ -652,6 +751,10 @@
       contactEmailLabel: 'i18n-contactEmailLabel',
       contactPhoneLabel1: 'i18n-contactPhoneLabel1',
       contactPhoneLabel2: 'i18n-contactPhoneLabel2',
+      formNameLabel: 'i18n-formNameLabel',
+      formEmailLabel: 'i18n-formEmailLabel',
+      formMessageLabel: 'i18n-formMessageLabel',
+      formSendBtn: 'i18n-formSendBtn',
       footerRights: 'i18n-footerRights'
     };
 
@@ -712,9 +815,73 @@
       try {
         const stored = localStorage.getItem('siteLang');
         if (stored && I18N[stored]) lang = stored;
-      } catch(_){}
-      setLang(lang);
-      buildLangMenu(lang);
+      } catch(_){}}
+    )();
+    // run setLang + build menu now that we closed IIFE properly
+    setLang(document.getElementById('lang-widget').dataset.current || 'en');
+    buildLangMenu(document.getElementById('lang-widget').dataset.current || 'en');
+
+    // ====================== CONTACT FORM HANDLER =======================
+    (function contactFormHandler(){
+      const form = document.getElementById('contact-form');
+      if(!form) return;
+      const thanksEl = document.getElementById('contact-form-thanks');
+      let hideTimer = null;
+
+      function currentLang(){
+        return document.getElementById('lang-widget').dataset.current || 'en';
+      }
+      function getThankYouMsg(){
+        const lang = currentLang();
+        const dict = I18N[lang] || I18N.en;
+        return dict.formThankYou || I18N.en.formThankYou;
+      }
+      function showThanks(){
+        if(!thanksEl) return;
+        thanksEl.textContent = getThankYouMsg();
+        thanksEl.classList.add('show');
+        if(hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(hideThanks, 5000);
+      }
+      function hideThanks(){
+        if(!thanksEl) return;
+        thanksEl.classList.remove('show');
+      }
+      if(thanksEl){
+        thanksEl.addEventListener('click', hideThanks);
+      }
+
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const formData = new FormData(form);
+        try {
+          const res = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' }
+          });
+          if(res.ok){
+            form.reset();
+            showThanks();
+          } else {
+            console.error('Formspree error', res.status);
+            showThanks(); // show anyway so user gets feedback
+          }
+        } catch(err){
+          console.error('Form submit failed', err);
+          showThanks(); // fallback feedback
+        }
+      });
+
+      // Update thank-you message if language changes after showing
+      // We'll override setLang to also update bubble text if visible
+      const _setLangOrig = setLang;
+      window.setLang = function(lang){
+        _setLangOrig(lang);
+        if(thanksEl && thanksEl.classList.contains('show')){
+          thanksEl.textContent = getThankYouMsg();
+        }
+      };
     })();
   </script>
 </body>

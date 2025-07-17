@@ -1,16 +1,18 @@
 /* ============================================================================
  * build.js – CommonJS build script for Flower Pickup Box
- * ============================================================================
- * Features:
- *   • Loads all language JSON from src/data/*.json
- *   • Ensures fallback English if en.json missing
- *   • Renders src/pages/index.njk using layouts/ + partials/
- *   • Embeds language JSON into <script id="lang-data">
- *   • Copies asset folders (css, js, data, img, gallery) into dist/
- *   • Adds console logging
+ * ---------------------------------------------------------------------------
+ * Usage: npm run build
  *
- * Requires: nunjucks 3.x  (npm install nunjucks)
- * Uses only Node core modules (no fs-extra).
+ * What it does:
+ *   • Loads all language JSON files from src/data/*.json
+ *   • Renders src/pages/index.njk using src/layouts/base.njk & partials
+ *   • Embeds language JSON into <script id="lang-data"> so main.js can switch
+ *   • Copies static assets (css, js, data, img, gallery) to dist/
+ *   • Uses only Node core modules (no fs-extra dependency)
+ *
+ * NOTE: We do NOT hard-code full translation strings here anymore.
+ *       Whatever is in src/data is what gets embedded.
+ *       If a language JSON is missing a key, your HTML default text remains.
  * ========================================================================== */
 
 const fs = require('fs');
@@ -29,11 +31,11 @@ const PAGES_DIR  = path.join(SRC, 'pages');
 const LAYOUT_DIR = path.join(SRC, 'layouts');
 const PART_DIR   = path.join(SRC, 'partials');
 
-/* top-level assets (outside src/) */
+/* top-level asset dirs (NOT under src/) */
 const IMG_DIR     = path.join(ROOT, 'img');
 const GALLERY_DIR = path.join(ROOT, 'gallery');
 
-/* -------------------------------------------------------------- Utilities -- */
+/* ---------------------------------------------------------------- Helpers -- */
 function ensureDirSync(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -59,7 +61,7 @@ function copyFileSync(src, dest) {
 
 function copyDirSync(srcDir, destDir) {
   if (!fs.existsSync(srcDir)) {
-    console.warn(`⚠️  Missing, skipped: ${srcDir}`);
+    console.warn(`⚠️  Source missing, skip copy: ${srcDir}`);
     return;
   }
   const stat = fs.lstatSync(srcDir);
@@ -83,87 +85,23 @@ function copyDirSync(srcDir, destDir) {
   }
 }
 
-/* ----------------------------------------------------------- Language Data -- */
+/* ----------------------------------------------------------- Lang Loading -- */
 function loadLangData() {
   const langs = {};
-  if (fs.existsSync(DATA_DIR)) {
-    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.json'));
-    for (const file of files) {
-      const code = path.basename(file, '.json'); // "en", "de", etc.
-      const full = path.join(DATA_DIR, file);
-      try {
-        const raw = fs.readFileSync(full, 'utf8');
-        langs[code] = JSON.parse(raw);
-      } catch (err) {
-        console.error(`✗ Failed to parse ${file}:`, err);
-      }
-    }
-  }
+  if (!fs.existsSync(DATA_DIR)) return langs;
+  const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.json'));
 
-  /* Minimal fallback English if en.json is missing */
-  if (!langs.en) {
-    console.warn('⚠️  en.json missing; injecting minimal fallback English.');
-    langs.en = {
-      heroTitle: "More Sales Less Effort",
-      heroTagline: "Smart, beautiful, and always open – your modern flower vending solution.",
-      introText: "How many customers have walked past your closed doors at 10 pm, their purchases lost forever? It doesn't have to be that way. Soon, every shop will offer 24/7 access—staff or no staff. Will yours?",
-      introBtnVideo: "See how it works",
-      introBtnContact: "Contact us",
-      technicalHeading: "Features",
-      tech1Title: "🔧 Technology",
-      tech1Item1: "LED lighting per compartment / global",
-      tech1Item2: "5 light modes",
-      tech1Item3: "Active cooling system",
-      tech1Item4: "Remote monitoring via Telegram bot",
-      tech2Title: "🛒 Service & Sales",
-      tech2Item1: "Touchscreen operation",
-      tech2Item2: "Card payment",
-      tech2Item3: "Digital price tags",
-      tech2Item4: "Advance reservation system",
-      tech2Item5: "Available 24/7",
-      tech3Title: "🎨 Design & Benefits",
-      tech3Item1: "Customizable design",
-      tech3Item2: "Already in use in Germany",
-      tech3Item3: "Made in the EU",
-      tech3Item4: "Competitive price",
-      techSpecColSpec: "Spec",
-      techSpecColValue: "Specifications",
-      techSpecDimensions: "Dimensions",
-      techSpecDimensionsVal: "Custom-built to fit your shop window",
-      techSpecCapacity: "Capacity",
-      techSpecCapacityVal: "Up to 24 lockers",
-      techSpecLockerSizes: "Locker Sizes",
-      techSpecLockerSizesVal: "- Small: for €20–40 bouquets<br>- Large: for €50–100 bouquets",
-      techSpecPower: "Power Usage",
-      techSpecPowerVal: "Max 300W (depends on active features)",
-      techSpecPayment: "Payment",
-      techSpecPaymentVal: "Card & contactless",
-      techSpecRemote: "Remote Monitoring",
-      techSpecRemoteVal: "Telegram alerts",
-      techSpecBranding: "Branding",
-      techSpecBrandingVal: "Custom panels & colors",
-      pricingHeading: "Pricing & ROI",
-      pricingSubheading: "An Investment That Pays Back Fast",
-      pricingBody1: "Every Flower Pickup Box is built to match your shop—number of lockers, cooling, and your preferred look.",
-      pricingBody2: "Most machines cost somewhere in the low to mid five-figure range.",
-      pricingBody3: "At our pilot in Mönchengladbach, one machine is selling over 100 bouquets each month—and demand keeps growing. For most shops, it pays for itself in 10–14 months.",
-      pricingCta: "Contact us for a quote",
-      videoPlaceholder: "Video coming soon…",
-      aboutHeading: "About Us",
-      aboutText: "We are a small team of engineers and designers passionate about helping shop owners unlock after-hours sales...",
-      galleryHeading: "Gallery",
-      contactsHeading: "Contacts",
-      contactEmailLabel: "Email:",
-      contactPhoneLabel1: "Phone (English / Latvian / Russian):",
-      contactPhoneLabel2: "Aija (German):",
-      formNameLabel: "Name",
-      formEmailLabel: "Email",
-      formMessageLabel: "Message",
-      formSendBtn: "Send",
-      formThankYou: "Thank you! We'll get to you as soon as possible.",
-      footerRights: "All rights reserved."
-    };
-  }
+  files.forEach(file => {
+    const code = path.basename(file, '.json'); // en, lv, ru, de
+    const filePath = path.join(DATA_DIR, file);
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      langs[code] = JSON.parse(raw);
+    } catch (err) {
+      console.error(`✗ Failed to parse language file ${file}:`, err);
+    }
+  });
+
   return langs;
 }
 
@@ -178,7 +116,7 @@ const env = nunjucks.configure(
   }
 );
 
-/* Filter: json (needed by base.njk) */
+/* JSON filter (needed by base.njk to embed lang data) */
 env.addFilter('json', function (obj, spaces) {
   try {
     return JSON.stringify(obj, null, spaces || 0);
@@ -192,13 +130,16 @@ env.addFilter('json', function (obj, spaces) {
 function renderSite() {
   const langData = loadLangData();
 
+  /* Clean dist */
   ensureDirSync(DIST);
   emptyDirSync(DIST);
 
   const pageCtx = {
     langData,
+    /* Live site URL (update if domain changes) */
     siteUrl: 'https://flowerpickupbox.netlify.app',
-    ogImage: 'https://flowerpickupbox.netlify.app/img/social-share.png',
+    /* Social share image — absolute URL (hero used by default) */
+    ogImage: 'https://flowerpickupbox.netlify.app/img/social-share.jpeg',
     buildTime: new Date().toISOString()
   };
 
@@ -211,7 +152,7 @@ function renderSite() {
   }
 
   fs.writeFileSync(path.join(DIST, 'index.html'), html, 'utf8');
-  console.log('✓ Rendered dist/index.html (langs:', Object.keys(langData).join(', '), ')');
+  console.log('✓ Rendered dist/index.html (languages:', Object.keys(langData).join(', ') || 'none', ')');
 }
 
 /* ---------------------------------------------------------- Copy Assets -- */

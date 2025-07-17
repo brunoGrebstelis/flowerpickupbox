@@ -1,7 +1,15 @@
 {# ============================================================================
    src/layouts/base.njk
-   Master layout for Flower Pickup Box.
-   Do not inline page content here; child templates supply {% block content %}.
+   Master layout for Flower Pickup Box site.
+
+   Context variables (provided by build.js):
+     pageTitle
+     pageDescription
+     siteUrl         (absolute root URL)
+     ogImage         (absolute share image URL)
+     langData        (object of all language JSONs)
+
+   The page body is inserted where {% block content %} appears.
 ============================================================================ #}
 <!DOCTYPE html>
 <html lang="en" translate="no">
@@ -14,34 +22,35 @@
   <meta name="description" content="{{ pageDescription | default('Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available.') }}" />
   <meta name="google" content="notranslate" />
 
-  {# Site root used in canonical + OG fallbacks #}
+  {# Canonical & site root -------------------------------------------------- #}
   {% set _site = siteUrl | default("https://flowerpickupbox.netlify.app") %}
   <link rel="canonical" href="{{ _site }}" />
 
-  {# Social preview image; override via ogImage; else default #}
+  {# Social preview image --------------------------------------------------- #}
   {% set _ogImg = ogImage | default(_site ~ '/img/social-share.png') %}
 
-  {# --- Open Graph (WhatsApp uses these) --- #}
+  {# Open Graph ------------------------------------------------------------- #}
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ _site }}" />
   <meta property="og:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
   <meta property="og:description" content="{{ pageDescription | default('Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring.') }}" />
   <meta property="og:image" content="{{ _ogImg }}" />
+  <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
 
-  {# --- Twitter Card --- #}
+  {# Twitter Card ----------------------------------------------------------- #}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
   <meta name="twitter:description" content="{{ pageDescription | default('Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring.') }}" />
   <meta name="twitter:image" content="{{ _ogImg }}" />
 
-  {# --- Icons & mobile browser UI tint --- #}
+  {# Favicons / Pinned / Theme color --------------------------------------- #}
   <link rel="icon" type="image/png" sizes="32x32" href="img/icon.png">
   <link rel="apple-touch-icon" href="img/icon.png">
   <link rel="mask-icon" href="img/icon.png" color="#000000">
   <meta name="msapplication-TileColor" content="#ffffff">
-  <meta name="theme-color" content="#ffffff"> {# white; prevents green top bar #}
+  <meta name="theme-color" content="#ffffff"> {# mobile browser UI color (was green) #}
 
   <link rel="stylesheet" href="css/styles.css" />
 </head>
@@ -59,9 +68,11 @@
             aria-label="Change language">🇬🇧</button>
   </div>
 
-  {# Embed language JSON for js/main.js to load offline & online ------------- #}
+  {# Embed language JSON for main.js ---------------------------------------- #}
   {% if langData %}
-  <script id="lang-data" type="application/json">{{ langData | json(0) | safe }}</script>
+  <script id="lang-data" type="application/json">
+  {{ langData | json(0) | safe }}
+  </script>
   {% endif %}
 
   <script src="js/main.js" defer></script>

@@ -55,7 +55,9 @@
       margin-inline:auto;
       text-align:center;
       /* removed width:100%/max-width:none; to prevent mobile overflow */
-      max-width:600px;
+      width:100%;
+      max-width:var(--max-width);
+      box-sizing:border-box;
     }
     .intro-pocket p{
       font-size:clamp(1rem,1.8vw,1.25rem);

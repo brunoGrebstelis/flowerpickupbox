@@ -139,7 +139,7 @@ function renderSite() {
     /* Live site URL (update if domain changes) */
     siteUrl: 'https://flowerpickupbox.netlify.app',
     /* Social share image — absolute URL (hero used by default) */
-    ogImage: 'https://flowerpickupbox.netlify.app/img/social-share.jpeg',
+    ogImage: 'https://flowerpickupbox.netlify.app/img/social-share.jpg',
     buildTime: new Date().toISOString()
   };
 

@@ -1,0 +1,32 @@
+<!-- CONTACTS SECTION -->
+<section id="contacts" aria-labelledby="contacts-heading">
+  <div class="wrapper">
+    <h2 id="contacts-heading">{{ t.contactsHeading }}</h2>
+    <div class="contacts-card">
+      <p><span id="i18n-contactEmailLabel">{{ t.contactEmailLabel }}</span> <a id="contact-email" href="mailto:bgrebstelis@gmail.com">bgrebstelis@gmail.com</a></p>
+      <p><span id="i18n-contactPhoneLabel1">{{ t.contactPhoneLabel1 }}</span> <a href="tel:+37126639072">+371 26639072</a></p>
+      <p><span id="i18n-contactPhoneLabel2">{{ t.contactPhoneLabel2 }}</span> <a href="tel:+4915782920110">+49 1578 2920110</a></p>
+
+      <!-- CTA FORM -->
+      <form id="contact-form" action="https://formspree.io/f/xzzvzpbv" method="POST" novalidate>
+        <div class="cf-field">
+          <label id="i18n-formNameLabel" for="cf-name">{{ t.formNameLabel }}</label>
+          <input id="cf-name" name="name" type="text" required autocomplete="name" />
+        </div>
+        <div class="cf-field">
+          <label id="i18n-formEmailLabel" for="cf-email">{{ t.formEmailLabel }}</label>
+          <input id="cf-email" name="email" type="email" required autocomplete="email" />
+        </div>
+        <div class="cf-field">
+          <label id="i18n-formMessageLabel" for="cf-message">{{ t.formMessageLabel }}</label>
+          <textarea id="cf-message" name="message" required></textarea>
+        </div>
+        <div class="contact-form-actions">
+          <button type="submit" class="msg-btn msg-btn--a" id="i18n-formSendBtn">{{ t.formSendBtn }}</button>
+        </div>
+      </form>
+
+      <div id="contact-form-thanks" class="contact-form-thanks" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+</section>

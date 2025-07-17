@@ -816,7 +816,7 @@
         const stored = localStorage.getItem('siteLang');
         if (stored && I18N[stored]) lang = stored;
       } catch(_){}}
-    )();
+    )();  
     // run setLang + build menu now that we closed IIFE properly
     setLang(document.getElementById('lang-widget').dataset.current || 'en');
     buildLangMenu(document.getElementById('lang-widget').dataset.current || 'en');

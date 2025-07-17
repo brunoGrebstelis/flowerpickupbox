@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Language" content="en" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flower Shop</title>
+  <meta name="description" content="Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available." />
+  <meta name="google" content="notranslate" />
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  {% block body %}{% endblock %}
+
+  {# --- Inline all language JSON so translations work offline --- #}
+  <script id="lang-data" type="application/json">
+    {{ langsJson | safe }}
+  </script>
+
+  <script src="js/main.js" defer></script>
+</body>
+</html>

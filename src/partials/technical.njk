@@ -1,0 +1,85 @@
+<!-- TECHNICAL SECTION -->
+<section id="technical" aria-labelledby="technical-heading">
+  <div class="wrapper">
+    <h2 id="technical-heading">{{ t.technicalHeading }}</h2>
+
+    <div class="tech-grid">
+      <!-- Card 1 -->
+      <article class="tech-card" aria-labelledby="tech-technik">
+        <h3 id="tech-technik">{{ t.tech1Title }}</h3>
+        <ul>
+          <li id="tech1Item1">{{ t.tech1Item1 }}</li>
+          <li id="tech1Item2">{{ t.tech1Item2 }}</li>
+          <li id="tech1Item3">{{ t.tech1Item3 }}</li>
+          <li id="tech1Item4">{{ t.tech1Item4 }}</li>
+        </ul>
+      </article>
+
+      <!-- Card 2 -->
+      <article class="tech-card" aria-labelledby="tech-bedienung">
+        <h3 id="tech-bedienung">{{ t.tech2Title }}</h3>
+        <ul>
+          <li id="tech2Item1">{{ t.tech2Item1 }}</li>
+          <li id="tech2Item2">{{ t.tech2Item2 }}</li>
+          <li id="tech2Item3">{{ t.tech2Item3 }}</li>
+          <li id="tech2Item4">{{ t.tech2Item4 }}</li>
+          <li id="tech2Item5">{{ t.tech2Item5 }}</li>
+        </ul>
+      </article>
+
+      <!-- Card 3 -->
+      <article class="tech-card" aria-labelledby="tech-design">
+        <h3 id="tech-design">{{ t.tech3Title }}</h3>
+        <ul>
+          <li id="tech3Item1">{{ t.tech3Item1 }}</li>
+          <li id="tech3Item2">{{ t.tech3Item2 }}</li>
+          <li id="tech3Item3">{{ t.tech3Item3 }}</li>
+          <li id="tech3Item4">{{ t.tech3Item4 }}</li>
+        </ul>
+      </article>
+    </div><!-- /.tech-grid -->
+
+    <!-- === Specifications Pocket === -->
+    <div class="tech-spec-pocket" role="region" aria-labelledby="tech-spec-col-spec">
+      <table class="tech-spec-table">
+        <thead>
+          <tr>
+            <th id="tech-spec-col-spec" scope="col"><span id="i18n-techSpecColSpec">{{ t.techSpecColSpec }}</span></th>
+            <th id="tech-spec-col-val"  scope="col"><span id="i18n-techSpecColValue">{{ t.techSpecColValue }}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><span id="i18n-techSpecDimensions">{{ t.techSpecDimensions }}</span></th>
+            <td><span id="i18n-techSpecDimensionsVal">{{ t.techSpecDimensionsVal | safe }}</span></td>
+          </tr>
+          <tr>
+            <th scope="row"><span id="i18n-techSpecCapacity">{{ t.techSpecCapacity }}</span></th>
+            <td><span id="i18n-techSpecCapacityVal">{{ t.techSpecCapacityVal | safe }}</span></td>
+          </tr>
+          <tr>
+            <th scope="row"><span id="i18n-techSpecLockerSizes">{{ t.techSpecLockerSizes }}</span></th>
+            <td><span id="i18n-techSpecLockerSizesVal">{{ t.techSpecLockerSizesVal | safe }}</span></td>
+          </tr>
+          <tr>
+            <th scope="row"><span id="i18n-techSpecPower">{{ t.techSpecPower }}</span></th>
+            <td><span id="i18n-techSpecPowerVal">{{ t.techSpecPowerVal | safe }}</span></td>
+          </tr>
+          <tr>
+            <th scope="row"><span id="i18n-techSpecPayment">{{ t.techSpecPayment }}</span></th>
+            <td><span id="i18n-techSpecPaymentVal">{{ t.techSpecPaymentVal | safe }}</span></td>
+          </tr>
+          <tr>
+            <th scope="row"><span id="i18n-techSpecRemote">{{ t.techSpecRemote }}</span></th>
+            <td><span id="i18n-techSpecRemoteVal">{{ t.techSpecRemoteVal | safe }}</span></td>
+          </tr>
+          <tr>
+            <th scope="row"><span id="i18n-techSpecBranding">{{ t.techSpecBranding }}</span></th>
+            <td><span id="i18n-techSpecBrandingVal">{{ t.techSpecBrandingVal | safe }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div><!-- /.tech-spec-pocket -->
+
+  </div>
+</section>

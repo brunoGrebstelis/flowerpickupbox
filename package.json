@@ -1,0 +1,12 @@
+{
+  "name": "flower-site",
+  "version": "1.0.0",
+  "description": "Flower vending marketing site",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "nunjucks": "3.2.3"
+  }
+}

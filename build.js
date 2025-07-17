@@ -1,87 +1,158 @@
-// build.js  (CommonJS version; works with Node 16 without "type":"module")
-const path = require('path');
+/* build.js – CommonJS build (no fs-extra dependency) */
+
 const fs = require('fs');
-const fsp = fs.promises;
+const path = require('path');
 const nunjucks = require('nunjucks');
 
+/* ---------------------------------------------
+   Paths
+--------------------------------------------- */
 const ROOT = __dirname;
 const SRC  = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
 
-async function cleanDist() {
-  // remove old dist (ignore errors)
-  try {
-    await fsp.rm(DIST, { recursive: true, force: true });
-  } catch (_) {}
+const DATA_DIR   = path.join(SRC, 'data');
+const CSS_DIR    = path.join(SRC, 'css');
+const JS_DIR     = path.join(SRC, 'js');
+const PAGES_DIR  = path.join(SRC, 'pages');
+const LAYOUT_DIR = path.join(SRC, 'layouts');
+const PART_DIR   = path.join(SRC, 'partials');
+
+const IMG_DIR     = path.join(ROOT, 'img');      // top-level (outside src/)
+const GALLERY_DIR = path.join(ROOT, 'gallery');  // top-level
+
+/* ---------------------------------------------
+   Helpers
+--------------------------------------------- */
+function ensureDirSync(dir) {
+  fs.mkdirSync(dir, { recursive: true });
 }
 
-async function ensureDir(p) {
-  await fsp.mkdir(p, { recursive: true });
-}
-
-async function copyDir(src, dest) {
-  if (!fs.existsSync(src)) return;
-  await ensureDir(dest);
-  const entries = await fsp.readdir(src, { withFileTypes: true });
-  for (const e of entries) {
-    const s = path.join(src, e.name);
-    const d = path.join(dest, e.name);
-    if (e.isDirectory()) {
-      await copyDir(s, d);
+function emptyDirSync(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir)) {
+    const p = path.join(dir, entry);
+    const stat = fs.lstatSync(p);
+    if (stat.isDirectory()) {
+      emptyDirSync(p);
+      fs.rmdirSync(p);
     } else {
-      await fsp.copyFile(s, d);
+      fs.unlinkSync(p);
     }
   }
 }
 
-async function loadLangData() {
-  const codes = ['en','lv','ru','de'];
-  const dataDir = path.join(SRC, 'data');
-  const out = {};
-  for (const c of codes) {
+function copyFileSync(src, dest) {
+  ensureDirSync(path.dirname(dest));
+  fs.copyFileSync(src, dest);
+}
+
+function copyDirSync(srcDir, destDir) {
+  if (!fs.existsSync(srcDir)) return;
+  const stat = fs.lstatSync(srcDir);
+  if (!stat.isDirectory()) {
+    copyFileSync(srcDir, destDir);
+    return;
+  }
+  ensureDirSync(destDir);
+  for (const entry of fs.readdirSync(srcDir)) {
+    const s = path.join(srcDir, entry);
+    const d = path.join(destDir, entry);
+    const st = fs.lstatSync(s);
+    if (st.isDirectory()) {
+      copyDirSync(s, d);
+    } else if (st.isSymbolicLink()) {
+      const target = fs.readlinkSync(s);
+      fs.symlinkSync(target, d);
+    } else {
+      copyFileSync(s, d);
+    }
+  }
+}
+
+/* ---------------------------------------------
+   Load language JSON files
+--------------------------------------------- */
+function loadLangData() {
+  const langs = {};
+  if (!fs.existsSync(DATA_DIR)) return langs;
+  const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.json'));
+  for (const file of files) {
+    const code = path.basename(file, '.json'); // en, lv, ru, de...
     try {
-      const raw = await fsp.readFile(path.join(dataDir, `${c}.json`), 'utf8');
-      out[c] = JSON.parse(raw);
+      const raw = fs.readFileSync(path.join(DATA_DIR, file), 'utf8');
+      langs[code] = JSON.parse(raw);
     } catch (err) {
-      console.warn(`⚠️  Missing or invalid ${c}.json: ${err.message}`);
-      out[c] = {}; // keep as empty object; client-side fallbacks handle it
+      console.error(`✗ Failed to parse ${file}:`, err);
     }
   }
-  return out;
+  return langs;
 }
 
-async function build() {
-  await cleanDist();
-  await ensureDir(DIST);
+/* ---------------------------------------------
+   Configure Nunjucks
+--------------------------------------------- */
+const env = nunjucks.configure(
+  [SRC, PAGES_DIR, LAYOUT_DIR, PART_DIR],
+  {
+    autoescape: true,
+    noCache: true,
+    trimBlocks: true,
+    lstripBlocks: true
+  }
+);
 
-  // nunjucks environment: point loader at src/ so we can reference layouts/, partials/, pages/
-  const env = new nunjucks.Environment(
-    new nunjucks.FileSystemLoader(SRC, { noCache: true }),
-    { autoescape: false }
-  );
+/* json filter */
+env.addFilter('json', function (obj, spaces) {
+  try {
+    return JSON.stringify(obj, null, spaces || 0);
+  } catch (err) {
+    console.error('json filter error:', err);
+    return '{}';
+  }
+});
 
-  // data passed into templates
-  const langData = await loadLangData();
-  const context = {
-    page:   { title: 'Flower Shop' },
-    siteUrl: 'https://example.com',   // <- change to your real domain when deployed
-    langData
+/* ---------------------------------------------
+   Render site
+--------------------------------------------- */
+function renderSite() {
+  const langData = loadLangData();
+
+  // Clean dist
+  ensureDirSync(DIST);
+  emptyDirSync(DIST);
+
+  const pageCtx = {
+    langData,
+    siteUrl: 'https://flowerpickupbox.netlify.app',
+    buildTime: new Date().toISOString()
   };
 
-  // render the PAGE template (NOT the layout!)
-  const html = env.render('pages/index.njk', context);
-  await fsp.writeFile(path.join(DIST, 'index.html'), html, 'utf8');
-  console.log('✓ Rendered dist/index.html');
-
-  // copy static assets
-  for (const dir of ['css','js','data','img','gallery']) {
-    await copyDir(path.join(SRC, dir), path.join(DIST, dir));
-  }
-  console.log('✓ Copied assets.');
-  console.log('Build complete.');
+  const html = env.render('pages/index.njk', pageCtx);
+  fs.writeFileSync(path.join(DIST, 'index.html'), html, 'utf8');
+  console.log('✓ Rendered dist/index.html (langs:', Object.keys(langData).join(', '), ')');
 }
 
-build().catch(err => {
+/* ---------------------------------------------
+   Copy assets
+--------------------------------------------- */
+function copyAssets() {
+  copyDirSync(CSS_DIR,    path.join(DIST, 'css'));
+  copyDirSync(JS_DIR,     path.join(DIST, 'js'));
+  copyDirSync(DATA_DIR,   path.join(DIST, 'data'));
+  copyDirSync(IMG_DIR,    path.join(DIST, 'img'));
+  copyDirSync(GALLERY_DIR,path.join(DIST, 'gallery'));
+  console.log('✓ Copied assets (css, js, data, img, gallery)');
+}
+
+/* ---------------------------------------------
+   Run build
+--------------------------------------------- */
+try {
+  renderSite();
+  copyAssets();
+  console.log('Build complete.');
+} catch (err) {
   console.error('Build failed:', err);
   process.exit(1);
-});
+}

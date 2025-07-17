@@ -1,63 +1,67 @@
-{# ============================================================
-   Base Layout
-   - Receives:
-       lang        -> current page language (we use 'en' for shell)
-       title       -> optional <title>
-       langData    -> object with ALL languages (embedded for client)
-   - Child templates fill the content block.
-   - SITE_URL used for absolute social meta.
-============================================================ #}
-{% set SITE_URL = "https://flowerpickupbox.netlify.app" %}
-{% set SHARE_IMG = SITE_URL + "/img/social-share.jpg" %}
-
+{# src/layouts/base.njk -------------------------------------------------------
+   Base layout for Flower Pickup Box site.
+   Receives:
+     - pageTitle (optional)
+     - pageDescription (optional)
+     - ogImage (optional)
+     - siteUrl (optional)
+     - langData (from build.js; DO NOT override in pages)
+------------------------------------------------------------------------------- #}
 <!DOCTYPE html>
-<html lang="{{ lang | default('en') }}" translate="no">
+<html lang="en" translate="no">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Language" content="{{ lang | default('en') }}" />
+  <meta http-equiv="Content-Language" content="en" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <title>{{ title | default("Flower Pickup Box") }}</title>
-  <meta name="description" content="Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring." />
+  <title>{{ pageTitle | default("Flower Shop") }}</title>
+  <meta name="description" content="{{ pageDescription | default('Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available.') }}" />
   <meta name="google" content="notranslate" />
 
-  <!-- Canonical -->
-  <link rel="canonical" href="{{ SITE_URL }}/" />
+  {# Canonical + Open Graph / Twitter #}
+  {% set _site = siteUrl | default("https://flowerpickupbox.netlify.app") %}
+  <link rel="canonical" href="{{ _site }}" />
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="{{ SITE_URL }}/" />
-  <meta property="og:title" content="Flower Pickup Box" />
-  <meta property="og:description" content="Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring." />
-  <meta property="og:image" content="{{ SHARE_IMG }}" />
-  <meta property="og:image:alt" content="Flower Pickup Box vending display" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="{{ _site }}" />
+  <meta property="og:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
+  <meta property="og:description" content="{{ pageDescription | default('Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring.') }}" />
+  <meta property="og:image" content="{{ ogImage | default(_site ~ '/img/icon.png') }}" />
 
-  <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Flower Pickup Box" />
-  <meta name="twitter:description" content="Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring." />
-  <meta name="twitter:image" content="{{ SHARE_IMG }}" />
+  <meta name="twitter:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
+  <meta name="twitter:description" content="{{ pageDescription | default('Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring.') }}" />
+  <meta name="twitter:image" content="{{ ogImage | default(_site ~ '/img/icon.png') }}" />
 
-  <!-- Icons -->
-  <link rel="icon" type="image/png" sizes="32x32" href="img/icon.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="img/icon.png">
+  {# Favicons #}
+  <link rel="icon" type="image/png" href="img/icon.png">
   <link rel="apple-touch-icon" href="img/icon.png">
-  <link rel="mask-icon" href="img/icon.png" color="#000000">
-
-  <!-- Theme color (controls mobile browser bar tint) -->
-  <meta name="theme-color" content="#000000">
+  <link rel="mask-icon" href="img/icon.png" color="#34C759">
+  <meta name="msapplication-TileColor" content="#34C759">
+  <meta name="theme-color" content="#34C759">
 
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   {% block content %}{% endblock %}
 
-  {# Embed ALL language JSON so JS can switch instantly #}
+  {# Language Switcher widget (required for translation UI) #}
+  <div class="lang-widget" id="lang-widget" data-current="en" aria-label="Language selector">
+    <div class="lang-options" id="lang-options" role="menu" aria-hidden="true"></div>
+    <button type="button"
+            class="lang-main-btn"
+            id="lang-main-btn"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-label="Change language">🇬🇧</button>
+  </div>
+
+  {# Embed language JSON for main.js #}
+  {% if langData %}
   <script id="lang-data" type="application/json">
-    {{ langData | dump | safe }}
+  {{ langData | json(0) | safe }}
   </script>
+  {% endif %}
 
   <script src="js/main.js" defer></script>
 </body>

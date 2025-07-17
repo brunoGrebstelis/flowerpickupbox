@@ -1,23 +1,39 @@
-{# ============================================================
-   Home page
-============================================================ #}
+{# src/pages/index.njk --------------------------------------------------------
+   Home page template.
+   IMPORTANT: Do NOT reset/override `langData` here; build.js passes it in.
+------------------------------------------------------------------------------- #}
 {% extends "layouts/base.njk" %}
 
-{# Provide these to base layout #}
-{% set lang = "en" %}           {# shell language; JS swaps content #}
-{% set title = "Flower Pickup Box" %}
-{% set langData = data %}       {# 'data' is passed from build.js (all languages) #}
+{# Optional per‑page meta overrides (base.njk supplies fallbacks). #}
+{% set pageTitle = "Flower Pickup Box" %}
+{% set pageDescription = "Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available." %}
+{# Example OG image override (base will default if not set): #}
+{% if siteUrl is defined %}
+  {% set ogImage = siteUrl ~ "/img/icon.png" %}
+{% endif %}
 
 {% block content %}
-  {# assemble page from partials #}
+  {# HERO ---------------------------------------------------- #}
   {% include "partials/hero.njk" %}
+
+  {# INTRO --------------------------------------------------- #}
   {% include "partials/intro.njk" %}
+
+  {# FEATURES / TECH + SPEC TABLE (one section in the partial) #}
   {% include "partials/technical.njk" %}
+
+  {# PRICING ------------------------------------------------- #}
   {% include "partials/pricing.njk" %}
+
+  {# VIDEO --------------------------------------------------- #}
   {% include "partials/video.njk" %}
+
+  {# ABOUT --------------------------------------------------- #}
   {% include "partials/about.njk" %}
+
+  {# GALLERY ------------------------------------------------- #}
   {% include "partials/gallery.njk" %}
+
+  {# CONTACTS ------------------------------------------------ #}
   {% include "partials/contacts.njk" %}
-  {% include "partials/footer.njk" %}
-  {% include "partials/lang-widget.njk" %}
 {% endblock %}

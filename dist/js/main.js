@@ -19,7 +19,7 @@ const LANG_FLAGS = { en:'🇬🇧', lv:'🇱🇻', ru:'🇷🇺', de:'🇩🇪' 
 
 /* Minimal fallback English (covers all keys we render) */
 const FALLBACK_EN = {
-  heroTitle: "More Sales. Less Effort.",
+  heroTitle: "More Sales Less Effort",
   heroTagline: "Smart, beautiful, and always open – your modern flower vending solution.",
   introText: "How many customers have walked past your closed doors at 10 pm, their purchases lost forever? It doesn't have to be that way. Soon, every shop will offer 24/7 access—staff or no staff. Will yours?",
   introBtnVideo: "See how it works",

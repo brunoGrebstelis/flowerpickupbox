@@ -1,4 +1,8 @@
-{# src/layouts/base.njk ------------------------------------------------------- #}
+{# ============================================================================
+   src/layouts/base.njk
+   Master layout for Flower Pickup Box.
+   Do not inline page content here; child templates supply {% block content %}.
+============================================================================ #}
 <!DOCTYPE html>
 <html lang="en" translate="no">
 <head>
@@ -10,13 +14,14 @@
   <meta name="description" content="{{ pageDescription | default('Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available.') }}" />
   <meta name="google" content="notranslate" />
 
-  {# Base site URL (from build.js) #}
+  {# Site root used in canonical + OG fallbacks #}
   {% set _site = siteUrl | default("https://flowerpickupbox.netlify.app") %}
-
   <link rel="canonical" href="{{ _site }}" />
 
-  {# Open Graph -------------------------------------------------------------- #}
+  {# Social preview image; override via ogImage; else default #}
   {% set _ogImg = ogImage | default(_site ~ '/img/social-share.png') %}
+
+  {# --- Open Graph (WhatsApp uses these) --- #}
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ _site }}" />
   <meta property="og:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
@@ -25,18 +30,18 @@
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
 
-  {# Twitter Card ------------------------------------------------------------ #}
+  {# --- Twitter Card --- #}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
   <meta name="twitter:description" content="{{ pageDescription | default('Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring.') }}" />
   <meta name="twitter:image" content="{{ _ogImg }}" />
 
-  {# Favicons / platform icons ----------------------------------------------- #}
+  {# --- Icons & mobile browser UI tint --- #}
   <link rel="icon" type="image/png" sizes="32x32" href="img/icon.png">
   <link rel="apple-touch-icon" href="img/icon.png">
-  <link rel="mask-icon" href="img/icon.png" color="#000000"> {# black tint for Safari pinned tabs #}
+  <link rel="mask-icon" href="img/icon.png" color="#000000">
   <meta name="msapplication-TileColor" content="#ffffff">
-  <meta name="theme-color" content="#ffffff"> {# controls mobile browser UI tint #}
+  <meta name="theme-color" content="#ffffff"> {# white; prevents green top bar #}
 
   <link rel="stylesheet" href="css/styles.css" />
 </head>
@@ -54,11 +59,9 @@
             aria-label="Change language">🇬🇧</button>
   </div>
 
-  {# Embed language JSON for main.js ----------------------------------------- #}
+  {# Embed language JSON for js/main.js to load offline & online ------------- #}
   {% if langData %}
-  <script id="lang-data" type="application/json">
-  {{ langData | json(0) | safe }}
-  </script>
+  <script id="lang-data" type="application/json">{{ langData | json(0) | safe }}</script>
   {% endif %}
 
   <script src="js/main.js" defer></script>

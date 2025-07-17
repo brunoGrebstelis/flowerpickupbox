@@ -1,39 +1,20 @@
-{# src/pages/index.njk --------------------------------------------------------
-   Home page template.
-   IMPORTANT: Do NOT reset/override `langData` here; build.js passes it in.
-------------------------------------------------------------------------------- #}
+{# ============================================================================
+   src/pages/index.njk
+   Home page assembly. Pulls in all section partials in the order you want.
+============================================================================ #}
 {% extends "layouts/base.njk" %}
 
-{# Optional per‑page meta overrides (base.njk supplies fallbacks). #}
-{% set pageTitle = "Flower Pickup Box" %}
+{% set pageTitle = "Flower Shop" %}
 {% set pageDescription = "Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available." %}
-{# Example OG image override (base will default if not set): #}
-{% if siteUrl is defined %}
-  {% set ogImage = siteUrl ~ "/img/icon.png" %}
-{% endif %}
 
 {% block content %}
-  {# HERO ---------------------------------------------------- #}
   {% include "partials/hero.njk" %}
-
-  {# INTRO --------------------------------------------------- #}
   {% include "partials/intro.njk" %}
-
-  {# FEATURES / TECH + SPEC TABLE (one section in the partial) #}
   {% include "partials/technical.njk" %}
-
-  {# PRICING ------------------------------------------------- #}
   {% include "partials/pricing.njk" %}
-
-  {# VIDEO --------------------------------------------------- #}
   {% include "partials/video.njk" %}
-
-  {# ABOUT --------------------------------------------------- #}
   {% include "partials/about.njk" %}
-
-  {# GALLERY ------------------------------------------------- #}
   {% include "partials/gallery.njk" %}
-
-  {# CONTACTS ------------------------------------------------ #}
   {% include "partials/contacts.njk" %}
+  {% include "partials/footer.njk" %}
 {% endblock %}

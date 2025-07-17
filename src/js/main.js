@@ -1,23 +1,19 @@
-/* ===========================================================
-   LANGUAGE DATA (embedded in HTML)
-=========================================================== */
-let EMBED_LANG_DATA = {};
-(function(){
-  const script = document.getElementById('lang-data');
-  if (script) {
-    try {
-      EMBED_LANG_DATA = JSON.parse(script.textContent.trim() || '{}');
-    } catch(err){
-      console.error('Failed to parse embedded language data:', err);
-      EMBED_LANG_DATA = {};
-    }
-  }
-})();
+/* =====================================================================
+   Flower Pickup Box – Main JS
+   - Language auto-detect + dynamic JSON loading
+   - Gallery slider
+   - Contact form AJAX
+   ===================================================================== */
 
+/* ---------------------------------------------------------------------
+   Config
+   ------------------------------------------------------------------ */
 const LANG_CODES = ['en','lv','ru','de'];
 const LANG_FLAGS = { en:'🇬🇧', lv:'🇱🇻', ru:'🇷🇺', de:'🇩🇪' };
+const DATA_BASE  = 'data';          // relative to site root (dist/)
+const DATA_EXT   = '.json';
 
-/* Minimal fallback English (covers all keys we render) */
+/* Minimal fallback English (all keys used in templates) */
 const FALLBACK_EN = {
   heroTitle: "More Sales Less Effort",
   heroTagline: "Smart, beautiful, and always open – your modern flower vending solution.",
@@ -42,7 +38,7 @@ const FALLBACK_EN = {
   tech3Item3: "Made in the EU",
   tech3Item4: "Competitive price",
 
-  /* new spec table */
+  /* Spec table */
   techSpecColSpec: "Spec",
   techSpecColValue: "Specifications",
   techSpecDimensions: "Dimensions",
@@ -84,7 +80,7 @@ const FALLBACK_EN = {
   footerRights: "All rights reserved."
 };
 
-/* Map translation keys -> DOM IDs */
+/* DOM id mapping */
 const I18N_MAP = {
   heroTitle: 'i18n-heroTitle',
   heroTagline: 'i18n-heroTagline',
@@ -148,15 +144,142 @@ const I18N_MAP = {
   footerRights: 'i18n-footerRights'
 };
 
-/* Build language cache from embedded data */
-const I18N_CACHE = { ...EMBED_LANG_DATA };
-if (!I18N_CACHE.en) {
-  I18N_CACHE.en = FALLBACK_EN;
+/* ---------------------------------------------------------------------
+   Language data loading + caching
+   ------------------------------------------------------------------ */
+const I18N_CACHE = { en: FALLBACK_EN };   // always have English
+let CURRENT_LANG = 'en';
+let CURRENT_DICT = FALLBACK_EN;
+const LANG_FETCH_PROMISES = {};           // avoid duplicate fetches
+
+function langFileURL(lang){
+  // root-relative path (no leading slash so works in subdirectory deploys)
+  return `${DATA_BASE}/${lang}${DATA_EXT}`;
 }
 
-/* ===========================================================
-   Scroll / top-of-page
-=========================================================== */
+async function loadLangData(lang){
+  if (I18N_CACHE[lang]) return I18N_CACHE[lang];
+  if (!LANG_FETCH_PROMISES[lang]) {
+    LANG_FETCH_PROMISES[lang] = fetch(langFileURL(lang), {cache:'no-cache'})
+      .then(r => r.ok ? r.json() : {})
+      .catch(()=>({}))
+      .then(obj => {
+        // store even if empty to avoid refetch loops; merge fallback at use time
+        I18N_CACHE[lang] = obj;
+        return obj;
+      });
+  }
+  return LANG_FETCH_PROMISES[lang];
+}
+
+function getLangDict(lang){
+  const raw = I18N_CACHE[lang] || {};
+  // merge fallback keys (fallback first, then override)
+  return Object.assign({}, FALLBACK_EN, raw);
+}
+
+function applyTranslations(dict){
+  for (const [key, id] of Object.entries(I18N_MAP)){
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.innerHTML = dict[key] ?? FALLBACK_EN[key] ?? '';
+  }
+  // update contact form thanks bubble if visible
+  const thanksEl = document.getElementById('contact-form-thanks');
+  if (thanksEl && thanksEl.classList.contains('show')) {
+    thanksEl.textContent = dict.formThankYou || FALLBACK_EN.formThankYou;
+  }
+}
+
+async function setLang(lang){
+  if(!LANG_CODES.includes(lang)) lang = 'en';
+
+  // load JSON if needed
+  await loadLangData(lang);
+
+  CURRENT_LANG = lang;
+  CURRENT_DICT = getLangDict(lang);
+
+  applyTranslations(CURRENT_DICT);
+
+  // document language attr (hyphenation & screen readers)
+  document.documentElement.lang = lang;
+
+  // update widget flag + aria
+  const mainBtn = document.getElementById('lang-main-btn');
+  if (mainBtn){
+    mainBtn.textContent = LANG_FLAGS[lang] || LANG_FLAGS.en;
+    mainBtn.setAttribute('aria-label', 'Change language (current: ' + lang.toUpperCase() + ')');
+  }
+  const widget = document.getElementById('lang-widget');
+  if (widget) widget.dataset.current = lang;
+
+  // persist
+  try { localStorage.setItem('siteLang', lang); } catch(_){}
+
+  // rebuild menu
+  buildLangMenu(lang);
+}
+
+function buildLangMenu(current){
+  const menu = document.getElementById('lang-options');
+  if(!menu) return;
+  menu.innerHTML = '';
+  LANG_CODES.forEach(code=>{
+    if(code===current) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lang-option-btn';
+    btn.textContent = LANG_FLAGS[code];
+    btn.setAttribute('data-lang', code);
+    btn.setAttribute('aria-label', 'Switch to ' + code.toUpperCase());
+    btn.addEventListener('click',()=>{ toggleLangMenu(false); setLang(code); });
+    menu.appendChild(btn);
+  });
+}
+
+function toggleLangMenu(force){
+  const widget = document.getElementById('lang-widget');
+  const menu   = document.getElementById('lang-options');
+  const mainBtn= document.getElementById('lang-main-btn');
+  if(!widget || !menu || !mainBtn) return;
+  const open = (force!==undefined)?force:!widget.classList.contains('open');
+  widget.classList.toggle('open', open);
+  mainBtn.setAttribute('aria-expanded', open ? 'true':'false');
+  menu.setAttribute('aria-hidden', open ? 'false':'true');
+}
+
+/* Detect initial language.
+   Priority:
+   1) ?lang=xx query param
+   2) saved localStorage preference
+   3) browser languages
+   4) en
+*/
+function detectInitialLang() {
+  const params = new URLSearchParams(window.location.search);
+  const qp = params.get('lang');
+  if (qp && LANG_CODES.includes(qp.toLowerCase())) return qp.toLowerCase();
+
+  try {
+    const stored = localStorage.getItem('siteLang');
+    if (stored && LANG_CODES.includes(stored)) return stored;
+  } catch(_){}
+
+  const browserLangs = navigator.languages || [navigator.language || navigator.userLanguage];
+  if (browserLangs && browserLangs.length) {
+    for (const bl of browserLangs) {
+      const code = String(bl || '').slice(0,2).toLowerCase();
+      if (LANG_CODES.includes(code)) return code;
+    }
+  }
+
+  return 'en';
+}
+
+/* ---------------------------------------------------------------------
+   Page-top behavior
+   ------------------------------------------------------------------ */
 (function ensureTopOnLoad(){
   if ('scrollRestoration' in history) {
     history.scrollRestoration = 'manual';
@@ -174,9 +297,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (y) y.textContent = new Date().getFullYear();
 });
 
-/* ===========================================================
-   Gallery slider (unchanged from last working version)
-=========================================================== */
+/* ---------------------------------------------------------------------
+   Gallery slider
+   ------------------------------------------------------------------ */
 const GALLERY_IMAGES = [
   'gallery/img1.png',
   'gallery/img2.png',
@@ -192,7 +315,7 @@ const viewport   = document.getElementById('gallery-viewport');
 const btnPrev    = slider ? slider.querySelector('.gallery-arrow-prev') : null;
 const btnNext    = slider ? slider.querySelector('.gallery-arrow-next') : null;
 
-let current = 0;
+let currentSlide = 0;
 let autoTimer = null;
 let isPaused = false;
 
@@ -218,7 +341,7 @@ function buildSlides(){
 function updateDots(){
   if(!dotsWrap) return;
   [...dotsWrap.children].forEach((dot,i)=>{
-    if(i===current){
+    if(i===currentSlide){
       dot.classList.add('active');
       dot.setAttribute('aria-current','true');
     } else {
@@ -229,14 +352,14 @@ function updateDots(){
 }
 function goTo(index, userInitiated=false){
   const count = GALLERY_IMAGES.length;
-  current = (index + count) % count;
-  const offset = -current * 100;
+  currentSlide = (index + count) % count;
+  const offset = -currentSlide * 100;
   if(slidesWrap) slidesWrap.style.transform = `translateX(${offset}%)`;
   updateDots();
   if(userInitiated) restartAuto();
 }
-function next(){goTo(current+1);}
-function prev(){goTo(current-1);}
+function next(){goTo(currentSlide+1);}
+function prev(){goTo(currentSlide-1);}
 function startAuto(){
   stopAuto();
   autoTimer = setInterval(()=>{if(!isPaused) next();}, AUTO_INTERVAL_MS);
@@ -244,6 +367,7 @@ function startAuto(){
 function stopAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}}
 function restartAuto(){startAuto();}
 function setPaused(state){isPaused = state;}
+
 if(slider){
   slider.addEventListener('mouseenter',()=>setPaused(true));
   slider.addEventListener('mouseleave',()=>setPaused(false));
@@ -266,7 +390,6 @@ if(slidesWrap && dotsWrap){
   goTo(0);
   startAuto();
 }
-// swipe
 (function addGallerySwipe(){
   const vp = document.getElementById('gallery-viewport');
   if (!vp) return;
@@ -309,135 +432,17 @@ if(slidesWrap && dotsWrap){
   });
 })();
 
-/* ===========================================================
-   Translation helpers
-=========================================================== */
-function getLangDict(lang){
-  return (I18N_CACHE[lang] && Object.keys(I18N_CACHE[lang]).length)
-    ? I18N_CACHE[lang]
-    : FALLBACK_EN;
-}
-
-function applyTranslations(dict){
-  for (const [key, id] of Object.entries(I18N_MAP)){
-    const el = document.getElementById(id);
-    if (!el) continue;
-    // use innerHTML so <br> works in spec values
-    el.innerHTML = dict[key] || FALLBACK_EN[key] || '';
-  }
-  // update thanks bubble text if visible
-  const thanksEl = document.getElementById('contact-form-thanks');
-  if (thanksEl && thanksEl.classList.contains('show')) {
-    thanksEl.textContent = dict.formThankYou || FALLBACK_EN.formThankYou;
-  }
-}
-
-async function setLang(lang){
-  if(!LANG_CODES.includes(lang)) lang = 'en';
-  const dict = getLangDict(lang);
-  applyTranslations(dict);
-  document.documentElement.lang = lang;
-  const mainBtn = document.getElementById('lang-main-btn');
-  if (mainBtn){
-    mainBtn.textContent = LANG_FLAGS[lang] || LANG_FLAGS.en;
-    mainBtn.setAttribute('aria-label', 'Change language (current: ' + lang.toUpperCase() + ')');
-  }
-  const widget = document.getElementById('lang-widget');
-  if (widget) widget.dataset.current = lang;
-  try { localStorage.setItem('siteLang', lang); } catch(_){}
-  buildLangMenu(lang);
-}
-
-function buildLangMenu(current){
-  const menu = document.getElementById('lang-options');
-  if(!menu) return;
-  menu.innerHTML = '';
-  LANG_CODES.forEach(code=>{
-    if(code===current) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'lang-option-btn';
-    btn.textContent = LANG_FLAGS[code];
-    btn.setAttribute('data-lang', code);
-    btn.setAttribute('aria-label', 'Switch to ' + code.toUpperCase());
-    btn.addEventListener('click',()=>{
-      toggleLangMenu(false);
-      setLang(code);
-    });
-    menu.appendChild(btn);
-  });
-}
-
-function toggleLangMenu(force){
-  const widget = document.getElementById('lang-widget');
-  const menu   = document.getElementById('lang-options');
-  const mainBtn= document.getElementById('lang-main-btn');
-  if(!widget || !menu || !mainBtn) return;
-  const open = (force!==undefined)?force:!widget.classList.contains('open');
-  widget.classList.toggle('open', open);
-  mainBtn.setAttribute('aria-expanded', open ? 'true':'false');
-  menu.setAttribute('aria-hidden', open ? 'false':'true');
-}
-
-/* init language controls */
-
-function detectInitialLang() {
-  // 1. ?lang=xx in URL overrides everything (good for testing)
-  const params = new URLSearchParams(window.location.search);
-  const qp = params.get('lang');
-  if (qp && LANG_CODES.includes(qp.toLowerCase())) {
-    return qp.toLowerCase();
-  }
-
-  // 2. saved user preference
-  try {
-    const stored = localStorage.getItem('siteLang');
-    if (stored && LANG_CODES.includes(stored)) {
-      return stored;
-    }
-  } catch(_) {}
-
-  // 3. browser preference list
-  const browserLangs = navigator.languages || [navigator.language || navigator.userLanguage];
-  if (browserLangs && browserLangs.length) {
-    for (const bl of browserLangs) {
-      const code = (bl || '').slice(0,2).toLowerCase();
-      if (LANG_CODES.includes(code)) {
-        return code;
-      }
-    }
-  }
-
-  // 4. fallback
-  return 'en';
-}
-
-
-document.addEventListener('DOMContentLoaded',()=>{
-  const mainBtn = document.getElementById('lang-main-btn');
-  if(mainBtn) mainBtn.addEventListener('click',()=>{ toggleLangMenu(); });
-
-  const lang = detectInitialLang();
-  setLang(lang);
-});
-
-/* ===========================================================
-   Contact Form
-=========================================================== */
+/* ---------------------------------------------------------------------
+   Contact Form / Formspree
+   ------------------------------------------------------------------ */
 (function initContactForm(){
   const form = document.getElementById('contact-form');
   if(!form) return;
   const thanksEl = document.getElementById('contact-form-thanks');
   let hideTimer = null;
 
-  function currentLang(){
-    const widget = document.getElementById('lang-widget');
-    return widget ? widget.dataset.current || 'en' : 'en';
-  }
   function getThankYouMsg(){
-    const lang = currentLang();
-    const dict = getLangDict(lang);
-    return dict.formThankYou || FALLBACK_EN.formThankYou;
+    return CURRENT_DICT.formThankYou || FALLBACK_EN.formThankYou;
   }
   function showThanks(){
     if(!thanksEl) return;
@@ -474,3 +479,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   });
 })();
+
+/* ---------------------------------------------------------------------
+   Init on DOM ready
+   ------------------------------------------------------------------ */
+document.addEventListener('DOMContentLoaded',()=>{
+  // language menu button
+  const mainBtn = document.getElementById('lang-main-btn');
+  if(mainBtn) mainBtn.addEventListener('click',()=>{ toggleLangMenu(); });
+
+  // detect and set
+  const lang = detectInitialLang();
+  setLang(lang);  // returns a Promise; we don't await because we want fast paint
+});

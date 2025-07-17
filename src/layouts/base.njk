@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Language" content="en" />
@@ -7,32 +9,37 @@
   <meta name="description" content="Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available." />
   <meta name="google" content="notranslate" />
 
-  {# Absolute site URL (edit this!) #}
+  {# canonical + share image (edit siteUrl in build.js if you want real domain) #}
   {% set canonical = siteUrl or 'https://example.com' %}
   <link rel="canonical" href="{{ canonical }}" />
-
-  {# Use the same icon.png for previews & favicon #}
   {% set shareimg = canonical ~ '/img/icon.png' %}
 
-  {# ---- Open Graph ---- #}
+  {# --- Open Graph --- #}
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ canonical }}" />
   <meta property="og:title" content="Flower Pickup Box" />
   <meta property="og:description" content="Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring." />
   <meta property="og:image" content="{{ shareimg }}" />
 
-  {# ---- Twitter Card ---- #}
+  {# --- Twitter Card --- #}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Flower Pickup Box" />
   <meta name="twitter:description" content="Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring." />
   <meta name="twitter:image" content="{{ shareimg }}" />
 
-  {# ---- Favicons (all point to same source) ---- #}
-  <link rel="icon" type="image/png" href="/img/icon.png">
-  <link rel="apple-touch-icon" href="/img/icon.png">
-  <link rel="mask-icon" href="/img/icon.png" color="#34C759">
+  {# Favicons (relative so file:// tests work) #}
+  <link rel="icon" type="image/png" href="img/icon.png">
+  <link rel="apple-touch-icon" href="img/icon.png">
+  <link rel="mask-icon" href="img/icon.png" color="#34C759">
   <meta name="msapplication-TileColor" content="#34C759">
   <meta name="theme-color" content="#34C759">
 
-  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
+<body>
+  {# PAGE CONTENT GOES HERE #}
+  {% block content %}{% endblock %}
+  {# JS at end of body #}
+  <script src="js/main.js" defer></script>
+</body>
+</html>

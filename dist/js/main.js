@@ -1,19 +1,20 @@
-/* =====================================================================
-   Flower Pickup Box – Main JS
-   - Language auto-detect + dynamic JSON loading
-   - Gallery slider
-   - Contact form AJAX
-   ===================================================================== */
+/* ===========================================================
+   Flower Pickup Box – main.js (defensive i18n + gallery + form)
+   -----------------------------------------------------------
+   This version:
+   - Safely reads <script id="lang-data"> JSON embedded in index.html
+   - Falls back to fetching /data/<lang>.json if needed
+   - Applies translations using a key -> elementId map
+   - Builds language switcher menu
+   - Initializes gallery slider
+   - Handles contact form + thank-you bubble
+=========================================================== */
 
-/* ---------------------------------------------------------------------
-   Config
-   ------------------------------------------------------------------ */
+/* ---------- CONFIG ---------- */
 const LANG_CODES = ['en','lv','ru','de'];
 const LANG_FLAGS = { en:'🇬🇧', lv:'🇱🇻', ru:'🇷🇺', de:'🇩🇪' };
-const DATA_BASE  = 'data';          // relative to site root (dist/)
-const DATA_EXT   = '.json';
 
-/* Minimal fallback English (all keys used in templates) */
+/* Minimal English fallback (all keys we render) */
 const FALLBACK_EN = {
   heroTitle: "More Sales Less Effort",
   heroTagline: "Smart, beautiful, and always open – your modern flower vending solution.",
@@ -38,7 +39,7 @@ const FALLBACK_EN = {
   tech3Item3: "Made in the EU",
   tech3Item4: "Competitive price",
 
-  /* Spec table */
+  /* spec table */
   techSpecColSpec: "Spec",
   techSpecColValue: "Specifications",
   techSpecDimensions: "Dimensions",
@@ -80,7 +81,7 @@ const FALLBACK_EN = {
   footerRights: "All rights reserved."
 };
 
-/* DOM id mapping */
+/* key -> DOM id */
 const I18N_MAP = {
   heroTitle: 'i18n-heroTitle',
   heroTagline: 'i18n-heroTagline',
@@ -144,100 +145,71 @@ const I18N_MAP = {
   footerRights: 'i18n-footerRights'
 };
 
-/* ---------------------------------------------------------------------
-   Language data loading + caching
-   ------------------------------------------------------------------ */
-const I18N_CACHE = { en: FALLBACK_EN };   // always have English
-let CURRENT_LANG = 'en';
-let CURRENT_DICT = FALLBACK_EN;
-const LANG_FETCH_PROMISES = {};           // avoid duplicate fetches
-
-function langFileURL(lang){
-  // root-relative path (no leading slash so works in subdirectory deploys)
-  return `${DATA_BASE}/${lang}${DATA_EXT}`;
-}
-
-async function loadLangData(lang){
-  if (I18N_CACHE[lang]) return I18N_CACHE[lang];
-  if (!LANG_FETCH_PROMISES[lang]) {
-    LANG_FETCH_PROMISES[lang] = fetch(langFileURL(lang), {cache:'no-cache'})
-      .then(r => r.ok ? r.json() : {})
-      .catch(()=>({}))
-      .then(obj => {
-        // store even if empty to avoid refetch loops; merge fallback at use time
-        I18N_CACHE[lang] = obj;
-        return obj;
-      });
+/* ---------- Parse embedded JSON ---------- */
+let EMBED_LANG_DATA = {};
+function readEmbeddedLangData() {
+  const node = document.getElementById('lang-data');
+  if (!node) {
+    console.warn('[i18n] No <script id="lang-data"> found; will rely on /data/*.json fetch.');
+    return;
   }
-  return LANG_FETCH_PROMISES[lang];
+  try {
+    EMBED_LANG_DATA = JSON.parse(node.textContent.trim() || '{}');
+    console.log('[i18n] Embedded language data loaded:', Object.keys(EMBED_LANG_DATA));
+  } catch (err) {
+    console.error('[i18n] Failed to parse embedded language data:', err);
+    EMBED_LANG_DATA = {};
+  }
 }
 
-function getLangDict(lang){
-  const raw = I18N_CACHE[lang] || {};
-  // merge fallback keys (fallback first, then override)
-  return Object.assign({}, FALLBACK_EN, raw);
+/* ---------- Cache ---------- */
+const I18N_CACHE = {};
+function cacheLang(code, dict){ I18N_CACHE[code] = dict || {}; }
+
+/* ---------- Build full dict w/ fallback ---------- */
+function mergedDict(lang){
+  const base = FALLBACK_EN;
+  const override = I18N_CACHE[lang] || {};
+  return { ...base, ...override };  // override keys replace fallback
 }
 
-function applyTranslations(dict){
+/* ---------- Apply translations to DOM ---------- */
+function applyTranslations(lang){
+  const dict = mergedDict(lang);
   for (const [key, id] of Object.entries(I18N_MAP)){
     const el = document.getElementById(id);
     if (!el) continue;
-    el.innerHTML = dict[key] ?? FALLBACK_EN[key] ?? '';
+    el.innerHTML = dict[key] || '';
   }
-  // update contact form thanks bubble if visible
+  // thank-you bubble update if visible
   const thanksEl = document.getElementById('contact-form-thanks');
   if (thanksEl && thanksEl.classList.contains('show')) {
     thanksEl.textContent = dict.formThankYou || FALLBACK_EN.formThankYou;
   }
 }
 
-async function setLang(lang){
-  if(!LANG_CODES.includes(lang)) lang = 'en';
-
-  // load JSON if needed
-  await loadLangData(lang);
-
-  CURRENT_LANG = lang;
-  CURRENT_DICT = getLangDict(lang);
-
-  applyTranslations(CURRENT_DICT);
-
-  // document language attr (hyphenation & screen readers)
-  document.documentElement.lang = lang;
-
-  // update widget flag + aria
-  const mainBtn = document.getElementById('lang-main-btn');
-  if (mainBtn){
-    mainBtn.textContent = LANG_FLAGS[lang] || LANG_FLAGS.en;
-    mainBtn.setAttribute('aria-label', 'Change language (current: ' + lang.toUpperCase() + ')');
-  }
-  const widget = document.getElementById('lang-widget');
-  if (widget) widget.dataset.current = lang;
-
-  // persist
-  try { localStorage.setItem('siteLang', lang); } catch(_){}
-
-  // rebuild menu
-  buildLangMenu(lang);
-}
-
+/* ---------- Build language menu ---------- */
 function buildLangMenu(current){
   const menu = document.getElementById('lang-options');
   if(!menu) return;
   menu.innerHTML = '';
   LANG_CODES.forEach(code=>{
-    if(code===current) return;
+    if(code === current) return;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'lang-option-btn';
     btn.textContent = LANG_FLAGS[code];
     btn.setAttribute('data-lang', code);
     btn.setAttribute('aria-label', 'Switch to ' + code.toUpperCase());
-    btn.addEventListener('click',()=>{ toggleLangMenu(false); setLang(code); });
+    btn.addEventListener('click',()=>{
+      toggleLangMenu(false);
+      setLang(code);
+    });
     menu.appendChild(btn);
   });
 }
 
+/* ---------- Toggle widget ---------- */
 function toggleLangMenu(force){
   const widget = document.getElementById('lang-widget');
   const menu   = document.getElementById('lang-options');
@@ -249,200 +221,90 @@ function toggleLangMenu(force){
   menu.setAttribute('aria-hidden', open ? 'false':'true');
 }
 
-/* Detect initial language.
-   Priority:
-   1) ?lang=xx query param
-   2) saved localStorage preference
-   3) browser languages
-   4) en
-*/
+/* ---------- Fetch language file if needed ---------- */
+async function fetchLang(code){
+  try {
+    const resp = await fetch(`data/${code}.json`, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+    return await resp.json();
+  } catch (err) {
+    console.warn(`[i18n] Could not load data/${code}.json:`, err);
+    return {};
+  }
+}
+
+/* ---------- Set language ---------- */
+async function setLang(code){
+  let lang = LANG_CODES.includes(code) ? code : 'en';
+
+  // load from cache or embedded or fetch
+  if (!(lang in I18N_CACHE)) {
+    // embedded?
+    if (EMBED_LANG_DATA[lang] && Object.keys(EMBED_LANG_DATA[lang]).length) {
+      cacheLang(lang, EMBED_LANG_DATA[lang]);
+    } else {
+      // fetch
+      const data = await fetchLang(lang);
+      cacheLang(lang, data);
+    }
+  }
+
+  applyTranslations(lang);
+
+  // update lang attr + widget flag + dataset + localStorage
+  document.documentElement.lang = lang;
+  const mainBtn = document.getElementById('lang-main-btn');
+  if (mainBtn){
+    mainBtn.textContent = LANG_FLAGS[lang] || LANG_FLAGS.en;
+    mainBtn.setAttribute('aria-label', 'Change language (current: ' + lang.toUpperCase() + ')');
+  }
+  const widget = document.getElementById('lang-widget');
+  if (widget) widget.dataset.current = lang;
+  try { localStorage.setItem('siteLang', lang); } catch(_) {}
+
+  buildLangMenu(lang);
+  console.log('[i18n] Language set to', lang);
+}
+
+/* ---------- Detect initial language ---------- */
 function detectInitialLang() {
+  // ?lang=xx
   const params = new URLSearchParams(window.location.search);
   const qp = params.get('lang');
   if (qp && LANG_CODES.includes(qp.toLowerCase())) return qp.toLowerCase();
 
+  // saved
   try {
     const stored = localStorage.getItem('siteLang');
     if (stored && LANG_CODES.includes(stored)) return stored;
-  } catch(_){}
+  } catch(_) {}
 
+  // browser prefs
   const browserLangs = navigator.languages || [navigator.language || navigator.userLanguage];
-  if (browserLangs && browserLangs.length) {
-    for (const bl of browserLangs) {
-      const code = String(bl || '').slice(0,2).toLowerCase();
-      if (LANG_CODES.includes(code)) return code;
-    }
+  for (const bl of browserLangs) {
+    const code = (bl || '').slice(0,2).toLowerCase();
+    if (LANG_CODES.includes(code)) return code;
   }
-
   return 'en';
 }
 
-/* ---------------------------------------------------------------------
-   Page-top behavior
-   ------------------------------------------------------------------ */
-(function ensureTopOnLoad(){
-  if ('scrollRestoration' in history) {
-    history.scrollRestoration = 'manual';
-  }
-  if (window.location.hash) {
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-  }
-  window.scrollTo(0,0);
-  window.addEventListener('load', () => window.scrollTo(0,0));
-})();
-
-/* Footer year */
-document.addEventListener('DOMContentLoaded', () => {
-  const y = document.getElementById('year');
-  if (y) y.textContent = new Date().getFullYear();
-});
-
-/* ---------------------------------------------------------------------
-   Gallery slider
-   ------------------------------------------------------------------ */
-const GALLERY_IMAGES = [
-  'gallery/img1.png',
-  'gallery/img2.png',
-  'gallery/img3.png',
-  'gallery/img4.png'
-];
-const AUTO_INTERVAL_MS = 5000;
-
-const slidesWrap = document.getElementById('gallery-slides');
-const dotsWrap   = document.getElementById('gallery-dots');
-const slider     = document.getElementById('gallery-slider');
-const viewport   = document.getElementById('gallery-viewport');
-const btnPrev    = slider ? slider.querySelector('.gallery-arrow-prev') : null;
-const btnNext    = slider ? slider.querySelector('.gallery-arrow-next') : null;
-
-let currentSlide = 0;
-let autoTimer = null;
-let isPaused = false;
-
-function buildSlides(){
-  if(!slidesWrap || !dotsWrap) return;
-  GALLERY_IMAGES.forEach((src, idx) => {
-    const slide = document.createElement('div');
-    slide.className = 'gallery-slide';
-    const img = document.createElement('img');
-    img.src = src;
-    img.alt = 'Gallery image ' + (idx+1);
-    slide.appendChild(img);
-    slidesWrap.appendChild(slide);
-
-    const dot = document.createElement('button');
-    dot.className = 'gallery-dot';
-    dot.type = 'button';
-    dot.setAttribute('aria-label','Go to slide '+(idx+1));
-    dot.addEventListener('click',() => goTo(idx,true));
-    dotsWrap.appendChild(dot);
-  });
-}
-function updateDots(){
-  if(!dotsWrap) return;
-  [...dotsWrap.children].forEach((dot,i)=>{
-    if(i===currentSlide){
-      dot.classList.add('active');
-      dot.setAttribute('aria-current','true');
-    } else {
-      dot.classList.remove('active');
-      dot.removeAttribute('aria-current');
-    }
-  });
-}
-function goTo(index, userInitiated=false){
-  const count = GALLERY_IMAGES.length;
-  currentSlide = (index + count) % count;
-  const offset = -currentSlide * 100;
-  if(slidesWrap) slidesWrap.style.transform = `translateX(${offset}%)`;
-  updateDots();
-  if(userInitiated) restartAuto();
-}
-function next(){goTo(currentSlide+1);}
-function prev(){goTo(currentSlide-1);}
-function startAuto(){
-  stopAuto();
-  autoTimer = setInterval(()=>{if(!isPaused) next();}, AUTO_INTERVAL_MS);
-}
-function stopAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}}
-function restartAuto(){startAuto();}
-function setPaused(state){isPaused = state;}
-
-if(slider){
-  slider.addEventListener('mouseenter',()=>setPaused(true));
-  slider.addEventListener('mouseleave',()=>setPaused(false));
-  slider.addEventListener('pointerdown',()=>setPaused(true));
-  slider.addEventListener('pointerup',()=>setPaused(false));
-  slider.addEventListener('pointercancel',()=>setPaused(false));
-}
-if(btnPrev) btnPrev.addEventListener('click',()=>{prev();restartAuto();});
-if(btnNext) btnNext.addEventListener('click',()=>{next();restartAuto();});
-if(viewport){
-  viewport.addEventListener('click', e => {
-    const rect = viewport.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    if (x < rect.width / 2) { prev(); } else { next(); }
-    restartAuto();
-  });
-}
-if(slidesWrap && dotsWrap){
-  buildSlides();
-  goTo(0);
-  startAuto();
-}
-(function addGallerySwipe(){
-  const vp = document.getElementById('gallery-viewport');
-  if (!vp) return;
-  let startX = 0;
-  let lastX = 0;
-  let dragging = false;
-  let swiped = false;
-  const MIN_SWIPE_FRAC = 0.15;
-  vp.addEventListener('pointerdown', e => {
-    startX = e.clientX;
-    lastX = startX;
-    dragging = true;
-    swiped = false;
-  });
-  vp.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    lastX = e.clientX;
-  });
-  function endPointer() {
-    if (!dragging) return;
-    dragging = false;
-    const dx = lastX - startX;
-    const rect = vp.getBoundingClientRect();
-    const thresh = rect.width * MIN_SWIPE_FRAC;
-    if (Math.abs(dx) > thresh) {
-      swiped = true;
-      if (dx < 0) { next(); } else { prev(); }
-      restartAuto();
-    }
-  }
-  vp.addEventListener('pointerup', endPointer);
-  vp.addEventListener('pointercancel', endPointer);
-  vp.addEventListener('lostpointercapture', endPointer);
-  vp.addEventListener('click', e => {
-    if (swiped) {
-      e.preventDefault();
-      e.stopPropagation();
-      swiped = false;
-    }
-  });
-})();
-
-/* ---------------------------------------------------------------------
-   Contact Form / Formspree
-   ------------------------------------------------------------------ */
-(function initContactForm(){
+/* ===========================================================
+   CONTACT FORM
+=========================================================== */
+function initContactForm(){
   const form = document.getElementById('contact-form');
   if(!form) return;
   const thanksEl = document.getElementById('contact-form-thanks');
   let hideTimer = null;
 
+  function currentLang(){
+    const widget = document.getElementById('lang-widget');
+    return widget ? widget.dataset.current || 'en' : 'en';
+  }
   function getThankYouMsg(){
-    return CURRENT_DICT.formThankYou || FALLBACK_EN.formThankYou;
+    const lang = currentLang();
+    const dict = mergedDict(lang);
+    return dict.formThankYou || FALLBACK_EN.formThankYou;
   }
   function showThanks(){
     if(!thanksEl) return;
@@ -455,9 +317,7 @@ if(slidesWrap && dotsWrap){
     if(!thanksEl) return;
     thanksEl.classList.remove('show');
   }
-  if(thanksEl){
-    thanksEl.addEventListener('click',hideThanks);
-  }
+  if(thanksEl){ thanksEl.addEventListener('click', hideThanks); }
 
   form.addEventListener('submit',async(e)=>{
     e.preventDefault();
@@ -468,27 +328,182 @@ if(slidesWrap && dotsWrap){
         body:data,
         headers:{'Accept':'application/json'}
       });
-      form.reset();
-      showThanks();
       if(!resp.ok){
         console.error('Formspree error',resp.status);
       }
+      form.reset();
+      showThanks();
     }catch(err){
       console.error('Form submit failed',err);
       showThanks();
     }
   });
-})();
+}
 
-/* ---------------------------------------------------------------------
-   Init on DOM ready
-   ------------------------------------------------------------------ */
-document.addEventListener('DOMContentLoaded',()=>{
-  // language menu button
+/* ===========================================================
+   GALLERY
+=========================================================== */
+function initGallery(){
+  const GALLERY_IMAGES = [
+    'gallery/img1.png',
+    'gallery/img2.png',
+    'gallery/img3.png',
+    'gallery/img4.png'
+  ];
+  const AUTO_INTERVAL_MS = 5000;
+
+  const slidesWrap = document.getElementById('gallery-slides');
+  const dotsWrap   = document.getElementById('gallery-dots');
+  const slider     = document.getElementById('gallery-slider');
+  const viewport   = document.getElementById('gallery-viewport');
+  const btnPrev    = slider ? slider.querySelector('.gallery-arrow-prev') : null;
+  const btnNext    = slider ? slider.querySelector('.gallery-arrow-next') : null;
+  let current = 0;
+  let autoTimer = null;
+  let isPaused = false;
+
+  if(!(slidesWrap && dotsWrap)) return;
+
+  function buildSlides(){
+    GALLERY_IMAGES.forEach((src, idx) => {
+      const slide = document.createElement('div');
+      slide.className = 'gallery-slide';
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = 'Gallery image ' + (idx+1);
+      slide.appendChild(img);
+      slidesWrap.appendChild(slide);
+
+      const dot = document.createElement('button');
+      dot.className = 'gallery-dot';
+      dot.type = 'button';
+      dot.setAttribute('aria-label','Go to slide '+(idx+1));
+      dot.addEventListener('click',() => goTo(idx,true));
+      dotsWrap.appendChild(dot);
+    });
+  }
+  function updateDots(){
+    [...dotsWrap.children].forEach((dot,i)=>{
+      if(i===current){
+        dot.classList.add('active');
+        dot.setAttribute('aria-current','true');
+      } else {
+        dot.classList.remove('active');
+        dot.removeAttribute('aria-current');
+      }
+    });
+  }
+  function goTo(index, userInitiated=false){
+    const count = GALLERY_IMAGES.length;
+    current = (index + count) % count;
+    const offset = -current * 100;
+    slidesWrap.style.transform = `translateX(${offset}%)`;
+    updateDots();
+    if(userInitiated) restartAuto();
+  }
+  function next(){goTo(current+1);}
+  function prev(){goTo(current-1);}
+  function startAuto(){
+    stopAuto();
+    autoTimer = setInterval(()=>{if(!isPaused) next();}, AUTO_INTERVAL_MS);
+  }
+  function stopAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}}
+  function restartAuto(){startAuto();}
+  function setPaused(state){isPaused = state;}
+
+  if(slider){
+    slider.addEventListener('mouseenter',()=>setPaused(true));
+    slider.addEventListener('mouseleave',()=>setPaused(false));
+    slider.addEventListener('pointerdown',()=>setPaused(true));
+    slider.addEventListener('pointerup',()=>setPaused(false));
+    slider.addEventListener('pointercancel',()=>setPaused(false));
+  }
+  if(btnPrev) btnPrev.addEventListener('click',()=>{prev();restartAuto();});
+  if(btnNext) btnNext.addEventListener('click',()=>{next();restartAuto();});
+  if(viewport){
+    viewport.addEventListener('click', e => {
+      const rect = viewport.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x < rect.width / 2) { prev(); } else { next(); }
+      restartAuto();
+    });
+  }
+  // swipe
+  (function addSwipe(){
+    const vp = viewport;
+    if (!vp) return;
+    let startX = 0, lastX = 0, dragging = false, swiped = false;
+    const MIN_FRAC = 0.15;
+    vp.addEventListener('pointerdown', e => {
+      startX = e.clientX;
+      lastX = startX;
+      dragging = true;
+      swiped = false;
+    });
+    vp.addEventListener('pointermove', e => { if(dragging) lastX = e.clientX; });
+    function endPointer(){
+      if(!dragging) return;
+      dragging = false;
+      const dx = lastX - startX;
+      const w = vp.getBoundingClientRect().width;
+      if(Math.abs(dx) > w*MIN_FRAC){
+        swiped = true;
+        if(dx < 0) next(); else prev();
+        restartAuto();
+      }
+    }
+    vp.addEventListener('pointerup', endPointer);
+    vp.addEventListener('pointercancel', endPointer);
+    vp.addEventListener('lostpointercapture', endPointer);
+    vp.addEventListener('click', e=>{
+      if(swiped){ e.preventDefault(); e.stopPropagation(); swiped=false; }
+    });
+  })();
+
+  buildSlides();
+  goTo(0);
+  startAuto();
+}
+
+/* ===========================================================
+   ON DOM READY
+=========================================================== */
+document.addEventListener('DOMContentLoaded', () => {
+
+  // footer year
+  const y = document.getElementById('year');
+  if (y) y.textContent = new Date().getFullYear();
+
+  // embedded language data
+  readEmbeddedLangData();
+  // prime cache with embedded
+  for (const code of LANG_CODES) {
+    if (EMBED_LANG_DATA[code]) cacheLang(code, EMBED_LANG_DATA[code]);
+  }
+
+  // main button toggler
   const mainBtn = document.getElementById('lang-main-btn');
   if(mainBtn) mainBtn.addEventListener('click',()=>{ toggleLangMenu(); });
 
-  // detect and set
+  // detect & set initial
   const lang = detectInitialLang();
-  setLang(lang);  // returns a Promise; we don't await because we want fast paint
+  setLang(lang);  // async allowed; we don't await
+
+  // init gallery + form
+  initGallery();
+  initContactForm();
 });
+
+/* ===========================================================
+   FORCE TOP reset (load + manual)
+=========================================================== */
+(function ensureTopOnLoad(){
+  if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+  }
+  if (window.location.hash) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  window.scrollTo(0,0);
+  window.addEventListener('load', () => window.scrollTo(0,0));
+})();

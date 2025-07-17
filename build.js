@@ -1,76 +1,87 @@
-// build.js (CommonJS, Node 16 compatible)
-const fs = require('fs');
+// build.js  (CommonJS version; works with Node 16 without "type":"module")
 const path = require('path');
+const fs = require('fs');
+const fsp = fs.promises;
 const nunjucks = require('nunjucks');
 
-const SRC = path.join(__dirname, 'src');
-const DIST = path.join(__dirname, 'dist');
+const ROOT = __dirname;
+const SRC  = path.join(ROOT, 'src');
+const DIST = path.join(ROOT, 'dist');
 
-// ensure dist exists
-if (!fs.existsSync(DIST)) {
-  fs.mkdirSync(DIST, { recursive: true });
+async function cleanDist() {
+  // remove old dist (ignore errors)
+  try {
+    await fsp.rm(DIST, { recursive: true, force: true });
+  } catch (_) {}
 }
 
-// nunjucks env
-const env = new nunjucks.Environment(
-  new nunjucks.FileSystemLoader(SRC, { noCache: true }),
-  { autoescape: true }
-);
-
-// load one language JSON
-function loadLang(code) {
-  const p = path.join(SRC, 'data', `${code}.json`);
-  if (!fs.existsSync(p)) return {};
-  return JSON.parse(fs.readFileSync(p, 'utf8'));
+async function ensureDir(p) {
+  await fsp.mkdir(p, { recursive: true });
 }
 
-// render pages
-function buildPages() {
-  const templatePath = path.join(SRC, 'pages', 'index.njk');
-
-  // load all langs
-  const LANG_CODES = ['en','lv','ru','de'];
-  const langs = {};
-  for (const code of LANG_CODES) {
-    langs[code] = loadLang(code);
-  }
-
-  // context sent to Nunjucks
-  const context = {
-    t: langs.en,                    // default text: English
-    langsJson: JSON.stringify(langs) // all languages as JSON string
-  };
-
-  const rendered = env.render(templatePath, context);
-  fs.writeFileSync(path.join(DIST, 'index.html'), rendered, 'utf8');
-  console.log('✓ Rendered dist/index.html');
-}
-
-// copy dirs
-function copyDir(srcDir, destDir) {
-  if (!fs.existsSync(srcDir)) return;
-  fs.mkdirSync(destDir, { recursive: true });
-  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    const s = path.join(srcDir, entry.name);
-    const d = path.join(destDir, entry.name);
-    if (entry.isDirectory()) {
-      copyDir(s, d);
+async function copyDir(src, dest) {
+  if (!fs.existsSync(src)) return;
+  await ensureDir(dest);
+  const entries = await fsp.readdir(src, { withFileTypes: true });
+  for (const e of entries) {
+    const s = path.join(src, e.name);
+    const d = path.join(dest, e.name);
+    if (e.isDirectory()) {
+      await copyDir(s, d);
     } else {
-      fs.copyFileSync(s, d);
+      await fsp.copyFile(s, d);
     }
   }
 }
 
-function copyAssets() {
-  copyDir(path.join(SRC, 'css'), path.join(DIST, 'css'));
-  copyDir(path.join(SRC, 'js'), path.join(DIST, 'js'));
-  copyDir(path.join(SRC, 'data'), path.join(DIST, 'data')); // still copy for reference
-  copyDir(path.join(SRC, 'img'), path.join(DIST, 'img'));
-  copyDir(path.join(SRC, 'gallery'), path.join(DIST, 'gallery'));
-  console.log('✓ Copied assets (css, js, data, img, gallery)');
+async function loadLangData() {
+  const codes = ['en','lv','ru','de'];
+  const dataDir = path.join(SRC, 'data');
+  const out = {};
+  for (const c of codes) {
+    try {
+      const raw = await fsp.readFile(path.join(dataDir, `${c}.json`), 'utf8');
+      out[c] = JSON.parse(raw);
+    } catch (err) {
+      console.warn(`⚠️  Missing or invalid ${c}.json: ${err.message}`);
+      out[c] = {}; // keep as empty object; client-side fallbacks handle it
+    }
+  }
+  return out;
 }
 
-// run
-buildPages();
-copyAssets();
-console.log('Build complete.');
+async function build() {
+  await cleanDist();
+  await ensureDir(DIST);
+
+  // nunjucks environment: point loader at src/ so we can reference layouts/, partials/, pages/
+  const env = new nunjucks.Environment(
+    new nunjucks.FileSystemLoader(SRC, { noCache: true }),
+    { autoescape: false }
+  );
+
+  // data passed into templates
+  const langData = await loadLangData();
+  const context = {
+    page:   { title: 'Flower Shop' },
+    siteUrl: 'https://example.com',   // <- change to your real domain when deployed
+    langData
+  };
+
+  // render the PAGE template (NOT the layout!)
+  const html = env.render('pages/index.njk', context);
+  await fsp.writeFile(path.join(DIST, 'index.html'), html, 'utf8');
+  console.log('✓ Rendered dist/index.html');
+
+  // copy static assets
+  for (const dir of ['css','js','data','img','gallery']) {
+    await copyDir(path.join(SRC, dir), path.join(DIST, dir));
+  }
+  console.log('✓ Copied assets.');
+  console.log('Build complete.');
+}
+
+build().catch(err => {
+  console.error('Build failed:', err);
+  process.exit(1);
+});

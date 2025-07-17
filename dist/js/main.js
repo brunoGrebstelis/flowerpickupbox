@@ -384,10 +384,23 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(mainBtn) mainBtn.addEventListener('click',()=>{ toggleLangMenu(); });
 
   let lang = 'en';
+
+  /* 1. Respect user choice stored earlier */
   try {
     const stored = localStorage.getItem('siteLang');
-    if (stored && LANG_CODES.includes(stored)) lang = stored;
-  } catch(_){}
+    if (stored && LANG_CODES.includes(stored)) {
+      lang = stored;
+    } else {
+      /* 2. Otherwise look at browser-preferred languages */
+      const browserLangs = navigator.languages || [navigator.language || navigator.userLanguage];
+      if (browserLangs && browserLangs.length) {
+        for (const bl of browserLangs) {
+          const code = (bl || '').slice(0,2).toLowerCase();  // "de", "de-DE" → "de"
+          if (LANG_CODES.includes(code)) { lang = code; break; }
+        }
+      }
+    }
+  } catch(_) { /* ignore */ }
 
   setLang(lang);
 });

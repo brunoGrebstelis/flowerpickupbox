@@ -125,6 +125,7 @@ function renderSite() {
   const pageCtx = {
     langData,
     siteUrl: 'https://flowerpickupbox.netlify.app',
+    ogImage: 'https://flowerpickupbox.netlify.app/img/social-share.png',
     buildTime: new Date().toISOString()
   };
 

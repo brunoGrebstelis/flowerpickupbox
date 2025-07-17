@@ -1,12 +1,4 @@
-{# src/layouts/base.njk -------------------------------------------------------
-   Base layout for Flower Pickup Box site.
-   Receives:
-     - pageTitle (optional)
-     - pageDescription (optional)
-     - ogImage (optional)
-     - siteUrl (optional)
-     - langData (from build.js; DO NOT override in pages)
-------------------------------------------------------------------------------- #}
+{# src/layouts/base.njk ------------------------------------------------------- #}
 <!DOCTYPE html>
 <html lang="en" translate="no">
 <head>
@@ -18,34 +10,40 @@
   <meta name="description" content="{{ pageDescription | default('Automated flower vending solutions – beautifully lit, smartly cooled, 24/7 available.') }}" />
   <meta name="google" content="notranslate" />
 
-  {# Canonical + Open Graph / Twitter #}
+  {# Base site URL (from build.js) #}
   {% set _site = siteUrl | default("https://flowerpickupbox.netlify.app") %}
+
   <link rel="canonical" href="{{ _site }}" />
 
+  {# Open Graph -------------------------------------------------------------- #}
+  {% set _ogImg = ogImage | default(_site ~ '/img/social-share.png') %}
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ _site }}" />
   <meta property="og:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
   <meta property="og:description" content="{{ pageDescription | default('Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring.') }}" />
-  <meta property="og:image" content="{{ ogImage | default(_site ~ '/img/icon.png') }}" />
+  <meta property="og:image" content="{{ _ogImg }}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
 
+  {# Twitter Card ------------------------------------------------------------ #}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="{{ pageTitle | default('Flower Pickup Box') }}" />
   <meta name="twitter:description" content="{{ pageDescription | default('Smart 24/7 flower vending – sell after hours with cooling, lighting & remote monitoring.') }}" />
-  <meta name="twitter:image" content="{{ ogImage | default(_site ~ '/img/icon.png') }}" />
+  <meta name="twitter:image" content="{{ _ogImg }}" />
 
-  {# Favicons #}
-  <link rel="icon" type="image/png" href="img/icon.png">
+  {# Favicons / platform icons ----------------------------------------------- #}
+  <link rel="icon" type="image/png" sizes="32x32" href="img/icon.png">
   <link rel="apple-touch-icon" href="img/icon.png">
-  <link rel="mask-icon" href="img/icon.png" color="#34C759">
-  <meta name="msapplication-TileColor" content="#34C759">
-  <meta name="theme-color" content="#34C759">
+  <link rel="mask-icon" href="img/icon.png" color="#000000"> {# black tint for Safari pinned tabs #}
+  <meta name="msapplication-TileColor" content="#ffffff">
+  <meta name="theme-color" content="#ffffff"> {# controls mobile browser UI tint #}
 
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   {% block content %}{% endblock %}
 
-  {# Language Switcher widget (required for translation UI) #}
+  {# Language Switcher widget ------------------------------------------------ #}
   <div class="lang-widget" id="lang-widget" data-current="en" aria-label="Language selector">
     <div class="lang-options" id="lang-options" role="menu" aria-hidden="true"></div>
     <button type="button"
@@ -56,7 +54,7 @@
             aria-label="Change language">🇬🇧</button>
   </div>
 
-  {# Embed language JSON for main.js #}
+  {# Embed language JSON for main.js ----------------------------------------- #}
   {% if langData %}
   <script id="lang-data" type="application/json">
   {{ langData | json(0) | safe }}

@@ -1,39 +1,23 @@
+{# ============================================================
+   Home page
+============================================================ #}
 {% extends "layouts/base.njk" %}
 
+{# Provide these to base layout #}
+{% set lang = "en" %}           {# shell language; JS swaps content #}
+{% set title = "Flower Pickup Box" %}
+{% set langData = data %}       {# 'data' is passed from build.js (all languages) #}
+
 {% block content %}
-  {# ===== HERO ===== #}
+  {# assemble page from partials #}
   {% include "partials/hero.njk" %}
-
-  {# ===== INTRO ===== #}
   {% include "partials/intro.njk" %}
-
-  {# ===== FEATURES (3 cards + spec table) ===== #}
   {% include "partials/technical.njk" %}
-
-  {# ===== PRICING ===== #}
   {% include "partials/pricing.njk" %}
-
-  {# ===== VIDEO ===== #}
   {% include "partials/video.njk" %}
-
-  {# ===== ABOUT ===== #}
   {% include "partials/about.njk" %}
-
-  {# ===== GALLERY ===== #}
   {% include "partials/gallery.njk" %}
-
-  {# ===== CONTACTS ===== #}
   {% include "partials/contacts.njk" %}
-
-  {# ===== FOOTER ===== #}
   {% include "partials/footer.njk" %}
-
-  {# ===== Language Switcher Widget markup ===== #}
   {% include "partials/lang-widget.njk" %}
-
-  {# ===== Embedded language JSON for client-side i18n =====
-     langData is passed from build.js. We stringify safely. #}
-  <script id="lang-data" type="application/json">
-    {{ langData | dump | safe }}
-  </script>
 {% endblock %}

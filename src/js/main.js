@@ -336,6 +336,7 @@ async function setLang(lang){
   if(!LANG_CODES.includes(lang)) lang = 'en';
   const dict = getLangDict(lang);
   applyTranslations(dict);
+  document.documentElement.lang = lang;
   const mainBtn = document.getElementById('lang-main-btn');
   if (mainBtn){
     mainBtn.textContent = LANG_FLAGS[lang] || LANG_FLAGS.en;
@@ -379,29 +380,44 @@ function toggleLangMenu(force){
 }
 
 /* init language controls */
+
+function detectInitialLang() {
+  // 1. ?lang=xx in URL overrides everything (good for testing)
+  const params = new URLSearchParams(window.location.search);
+  const qp = params.get('lang');
+  if (qp && LANG_CODES.includes(qp.toLowerCase())) {
+    return qp.toLowerCase();
+  }
+
+  // 2. saved user preference
+  try {
+    const stored = localStorage.getItem('siteLang');
+    if (stored && LANG_CODES.includes(stored)) {
+      return stored;
+    }
+  } catch(_) {}
+
+  // 3. browser preference list
+  const browserLangs = navigator.languages || [navigator.language || navigator.userLanguage];
+  if (browserLangs && browserLangs.length) {
+    for (const bl of browserLangs) {
+      const code = (bl || '').slice(0,2).toLowerCase();
+      if (LANG_CODES.includes(code)) {
+        return code;
+      }
+    }
+  }
+
+  // 4. fallback
+  return 'en';
+}
+
+
 document.addEventListener('DOMContentLoaded',()=>{
   const mainBtn = document.getElementById('lang-main-btn');
   if(mainBtn) mainBtn.addEventListener('click',()=>{ toggleLangMenu(); });
 
-  let lang = 'en';
-
-  /* 1. Respect user choice stored earlier */
-  try {
-    const stored = localStorage.getItem('siteLang');
-    if (stored && LANG_CODES.includes(stored)) {
-      lang = stored;
-    } else {
-      /* 2. Otherwise look at browser-preferred languages */
-      const browserLangs = navigator.languages || [navigator.language || navigator.userLanguage];
-      if (browserLangs && browserLangs.length) {
-        for (const bl of browserLangs) {
-          const code = (bl || '').slice(0,2).toLowerCase();  // "de", "de-DE" → "de"
-          if (LANG_CODES.includes(code)) { lang = code; break; }
-        }
-      }
-    }
-  } catch(_) { /* ignore */ }
-
+  const lang = detectInitialLang();
   setLang(lang);
 });
 

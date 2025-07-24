@@ -210,15 +210,61 @@ section h2 {margin-top:0;font-size:clamp(1.75rem,4vw,2.5rem);line-height:1.2;tex
 }
 
 /* VIDEO (white because Pricing above is grey) */
-#video{background:#fff;text-align:center;}
+#video{
+  background:#fff;
+  text-align:center;
+}
+
 #video .video-placeholder{
-  margin-top:var(--space-stack);
-  background:var(--clr-pocket);
-  padding:4rem 1rem;
-  border-radius:var(--radius-pocket);
-  box-shadow:var(--shadow-pocket);
-  font-size:1.5rem;
-  font-weight:600;
+  margin: var(--space-stack) auto 0;
+  background: var(--clr-pocket);
+  padding: 4rem 1rem;
+  border-radius: var(--radius-pocket);
+  box-shadow: var(--shadow-pocket);
+  width: 100%;
+  max-width: var(--max-width);
+  box-sizing: border-box;
+
+  /* center the iframe inside */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* responsive 16:9 iframe, centered, no black background block */
+#video .video-frame{
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  background: transparent;
+}
+
+/* Modern browsers */
+@supports (aspect-ratio: 16 / 9) {
+  #video .video-frame{
+    aspect-ratio: 16 / 9;
+  }
+  #video .video-frame iframe{
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+}
+
+/* Fallback for older browsers */
+@supports not (aspect-ratio: 16 / 9) {
+  #video .video-frame::before{
+    content: "";
+    display: block;
+    padding-top: 56.25%; /* 16:9 */
+  }
+  #video .video-frame iframe{
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
 }
 
 /* ABOUT (grey because Video above is white) */

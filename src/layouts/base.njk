@@ -1,16 +1,4 @@
-{# ============================================================================
-   src/layouts/base.njk
-   Master layout for Flower Pickup Box site.
 
-   Context variables (provided by build.js):
-     pageTitle
-     pageDescription
-     siteUrl         (absolute root URL)
-     ogImage         (absolute share image URL)
-     langData        (object of all language JSONs)
-
-   The page body is inserted where {% block content %} appears.
-============================================================================ #}
 <!DOCTYPE html>
 <html lang="en" translate="no">
 <head>
@@ -53,6 +41,10 @@
   <meta name="theme-color" content="#ffffff"> {# mobile browser UI color (was green) #}
 
   <link rel="stylesheet" href="css/styles.css" />
+
+  {# Lite YouTube embed (keeps page fast – loads real player only on click) #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lite-youtube-embed/src/lite-yt-embed.css" />
+  <script type="module" src="https://cdn.jsdelivr.net/npm/lite-youtube-embed/src/lite-yt-embed.js"></script>
 </head>
 <body>
   {% block content %}{% endblock %}

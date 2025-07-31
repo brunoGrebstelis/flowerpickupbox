@@ -38,6 +38,7 @@ const FALLBACK_EN = {
   tech3Item2: "Already in use in Germany",
   tech3Item3: "Made in the EU",
   tech3Item4: "Competitive price",
+  tech3Item5: "Modular design — easily tailored for each store.",
 
   /* spec table */
   techSpecColSpec: "Spec",
@@ -105,6 +106,7 @@ const I18N_MAP = {
   tech3Item2: 'tech3Item2',
   tech3Item3: 'tech3Item3',
   tech3Item4: 'tech3Item4',
+  tech3Item5: 'tech3Item5',
 
   techSpecColSpec: 'i18n-techSpecColSpec',
   techSpecColValue: 'i18n-techSpecColValue',

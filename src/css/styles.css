@@ -11,8 +11,8 @@
   --clr-pocket: linear-gradient(to bottom right, #E4CDDD, #F1D2D0);
 
   /* Other theme colors (unchanged) */
-  --clr-bubble-a: #DCAD6E;
-  --clr-bubble-b: #30AC8C;
+  --clr-bubble-a: #30AC8C;
+  --clr-bubble-b: #DCAD6E;
   --clr-text-dark: #1a1a1a;
   --clr-text-light: #ffffff;
 

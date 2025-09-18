@@ -678,3 +678,24 @@ footer a{
 .lang-widget.open .lang-options{
   display: flex;
 }
+
+footer {
+  text-align: center;
+  padding: 1rem 0;
+  background: #000;
+  color: #fff;
+}
+
+.footer-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px; /* space between text and icon */
+}
+
+.footer-content a.instagram-link svg {
+  vertical-align: middle;
+  transition: transform 0.2s ease;
+}
+.footer-content a.instagram-link:hover svg {
+  transform: scale(1.1);
+}

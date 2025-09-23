@@ -11,11 +11,11 @@
   "tech1Item3": "Aktīva dzesēšanas sistēma",
   "tech1Item4": "Attālināta uzraudzība caur Telegram botu",
   "tech2Title": "🛒 Apkalpošana & Pārdošana",
-  "tech2Item1": "Skārienekrāna vadība",
-  "tech2Item2": "Kartes maksājumi",
-  "tech2Item3": "Digitālās cenu zīmes",
-  "tech2Item4": "Iepriekšēja rezervācija",
-  "tech2Item5": "Pieejams 24/7",
+  "tech2Item1": "Skārienjūtīga ekrāna vadība",
+  "tech2Item2": "POS",
+  "tech2Item3": "Digitālas cenu zīmes",
+  "tech2Item4": "Iespēja rezervēt pušķi",
+  "tech2Item5": "Strādā 24/7",
   "tech3Title": "🎨 Dizains & Priekšrocības",
   "tech3Item1": "Pielāgojams dizains",
   "tech3Item2": "Jau darbojas Vācijā",
@@ -30,7 +30,7 @@
   "pricingCta": "Sazinieties ar mums par piedāvājumu",
   "videoPlaceholder": "Video drīzumā…",
   "aboutHeading": "Par mums",
-  "aboutText": "Mēs esam neliela inženieru un dizaineru komanda, kas ļaujveikalam strādāt bez darbiniekiem visu cauru diennakti. Mūsu ideja – katram veikalam jābūt pieejamam 24/7. Veidojam tirdzniecības automātus, kas apvieno viedās tehnoloģijas ar elegantu dizainu. Dinamiska LED gaisma, aktīva dzesēšana un Telegram uzraudzība uztur produktus svaigus un klientus apmierinātus – arī tad, kad durvis ir slēgtas.",
+  "aboutText": "Mēs esam neliela inženieru un dizaineru komanda, kas ļauj veikalam strādāt bez darbiniekiem visu cauru diennakti. Mūsu ideja – katram veikalam jābūt pieejamam 24/7. Veidojam tirdzniecības automātus, kas apvieno viedās tehnoloģijas ar elegantu dizainu. Dinamiska LED gaisma, aktīva dzesēšana un Telegram uzraudzība uztur produktus svaigus un klientus apmierinātus – arī tad, kad durvis ir slēgtas.",
   "galleryHeading": "Galerija",
   "contactsHeading": "Kontakti",
   "contactEmailLabel": "E-pasts:",
@@ -57,6 +57,6 @@
   "techSpecRemote": "Attālināta uzraudzība",
   "techSpecRemoteVal": "Telegram paziņojumi",
   "techSpecBranding": "Brandings",
-  "techSpecBrandingVal": "Pielāgojamas paneļi & krāsas"
+  "techSpecBrandingVal": "Pielāgojami paneļi & krāsas"
 
 }

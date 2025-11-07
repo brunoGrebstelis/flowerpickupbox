@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bruno Grebstelis — Portfolio</title>
+  <meta name="description" content="Bruno Grebstelis — elektronika, PCB, iebūvētās sistēmas, prototipēšana. Projekti, kodi un CV.">
+  <link rel="icon" href="data:,">
+  <style>
+    :root{
+      --panel:#ffffff; --text:#0b0f13; --muted:#5b6470;
+      --accent:#C93071; --accent2:#0b8a6b; --border:#e5e7eb;
+      --shadow:0 2px 6px rgba(0,0,0,.06),0 12px 32px rgba(0,0,0,.08);
+      --r:18px; --w:1100px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Inter,"Noto Sans",Arial;
+      color:var(--text);
+      background:linear-gradient(180deg,#E4CDDD 0%, #F1D2D0 25%, #F2E1DA 100%) fixed;
+    }
+    .wrap{max-width:var(--w); margin:0 auto; padding:32px 18px 64px}
+    header{
+      background:var(--panel);
+      border:1px solid var(--border);
+      box-shadow:var(--shadow);
+      border-radius:24px;
+      padding:28px;
+      margin:22px 0 26px;
+      display:flex; align-items:center; gap:18px;
+    }
+    h1{font-size:36px; margin:0}
+    section{
+      background:var(--panel); border:1px solid var(--border);
+      box-shadow:var(--shadow); border-radius:var(--r);
+      padding:22px; margin:18px 0;
+    }
+    section h2{margin:0 0 6px; font-size:22px}
+    section p{margin:8px 0 0}
+    .meta{color:var(--muted); font-size:14px}
+    .downloads{display:grid; gap:10px; margin-top:8px}
+    .dl{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:10px 12px; border:1px dashed var(--border); border-radius:12px; background:#fafafa;
+    }
+    .dl a{font-weight:600; color:var(--accent2); text-decoration:none; display:inline-flex; gap:8px; align-items:center}
+    .dl svg{width:18px; height:18px}
+    .pcb-list{display:grid; gap:14px; margin-top:10px}
+    .pcb{display:grid; gap:10px; grid-template-columns: 120px 1fr}
+    .pcb img{width:120px; height:90px; object-fit:cover; border-radius:12px; border:1px solid var(--border); background:#f5f5f5}
+    a.ext{color:var(--accent2); text-decoration:none; font-weight:600}
+    .bubble{
+      display:grid; grid-template-columns:120px 1fr; gap:14px; align-items:center;
+      border:1px solid var(--border); border-radius:18px; padding:14px; background:#fff;
+      box-shadow:var(--shadow);
+    }
+    .bubble img{width:120px; height:90px; object-fit:cover; border-radius:12px; border:1px solid var(--border)}
+    footer{color:var(--muted); text-align:center; margin:24px 0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Name -->
+    <header>
+      <h1>Bruno&nbsp;Grebstelis</h1>
+    </header>
+
+    <!-- LinkedIn -->
+    <section>
+      <h2>Informācija par pieredzi un lielākajiem projektiem</h2>
+      <p>Apskatiet manu <a class="ext" target="_blank" rel="noopener" href="https://www.linkedin.com/in/bruno-grebstelis-aa064a241/">LinkedIn profilu</a> — tur īsi apkopota profesionālā pieredze un galvenie projekti.</p>
+    </section>
+
+    <!-- Pre-uni -->
+    <section>
+      <h2>Pirms universitātes projekti</h2>
+      <p>Agrīnās ieceres un darbi: <a class="ext" target="_blank" rel="noopener" href="https://brunogrebstelis.netlify.app/projects-web.html">2015–2020</a></p>
+    </section>
+
+    <!-- PCB -->
+    <section>
+      <h2>PCB projekti</h2>
+      <div class="pcb-list">
+        <div class="pcb">
+          <img src="img1.jpg" alt="Locker Driver — 7-segment un RGB vadība">
+          <div>
+            <strong>Locker Driver</strong>
+            <p class="meta">Digitālā cenu zīme un RGB apgaismojums katram skapītim. Saņem I²C no galvenās plates, iestata 7-segmenta cenu un RGB krāsu.</p>
+            <div class="downloads">
+              <div class="dl">
+                <span>Altium Designer</span>
+                <a href="Locker Driver V1.0_2025-11-07.zip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Locker&nbsp;Driver&nbsp;V1.0_2025-11-07.zip
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pcb">
+          <img src="img2.jpg" alt="Battery monitoring — precīzs mērījums">
+          <div>
+            <strong>Battery monitoring</strong>
+            <p class="meta">Kopā ar universitātes profesoru izstrādāts litija baterijas strāvas un sprieguma mērītājs ar precizitāti līdz sešām zīmēm aiz komata; paredzēts laboratorijas eksperimentiem.</p>
+            <div class="downloads">
+              <div class="dl">
+                <span>Altium Designer</span>
+                <a href="Battery monitoring.zip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Battery&nbsp;monitoring.zip
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pcb">
+          <img src="img3.jpg" alt="Vending Machine galvenā plate">
+          <div>
+            <strong>Vending Machine galvenā plate</strong>
+            <p class="meta">Saņem SPI no RPi, vada cenu zīmes, RGB apgaismojumu un slēdzeņu plati, uzrauga sensorus.</p>
+            <div class="downloads">
+              <div class="dl">
+                <span>Altium Designer</span>
+                <a href="Vending Machine main board.zip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Vending&nbsp;Machine&nbsp;main&nbsp;board.zip
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Code -->
+    <section>
+      <h2>Kodi</h2>
+      <p>Visi mani kodi: <a class="ext" target="_blank" rel="noopener" href="https://github.com/brunoGrebstelis?tab=repositories">GitHub</a></p>
+    </section>
+
+    <!-- Flower Pickup Box -->
+    <section>
+      <div class="bubble">
+        <img src="img4.jpg" alt="Flower Pickup Box">
+        <div>
+          <h3 style="margin:0 0 6px">Flower Pickup Box</h3>
+          <p class="meta">Ziedu veikalu vitrīnā iebūvējams ziedu tirdzniecības automāts.</p>
+          <p style="margin:10px 0 0">
+            <a class="ext" target="_blank" rel="noopener" href="https://flowerpickupbox.com/">Atvērt projektu</a>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CV -->
+    <section>
+      <div class="bubble" style="grid-template-columns:1fr;">
+        <div>
+          <h3 style="margin:0 0 6px">CV</h3>
+          <div class="downloads" style="margin-top:8px">
+            <div class="dl">
+              <span>PDF</span>
+              <!-- Open CV in a new tab -->
+              <a href="Bruno Grebstelis.pdf" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                CV
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>© <span id="y"></span> Bruno Grebstelis</footer>
+  </div>
+  <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

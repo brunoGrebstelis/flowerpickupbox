@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flower Pickup Box Control</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="top-card">
+      <div>
+        <p class="eyebrow">APP</p>
+        <h1>Flower Pickup Box Control Panel</h1>
+      </div>
+      <div class="api-config">
+        <label for="apiBaseUrl">API URL</label>
+        <input id="apiBaseUrl" type="text" value="https://nyetm5ibma.eu-central-1.awsapprunner.com" />
+      </div>
+    </header>
+
+    <section class="card selector-card">
+      <div class="field">
+        <label for="userSelect">User</label>
+        <select id="userSelect">
+          <option value="">Choose user</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="machineSelect">Machine</label>
+        <select id="machineSelect" disabled>
+          <option value="">Choose machine</option>
+        </select>
+      </div>
+      <div class="actions">
+        <button id="loadBtn" class="btn btn-primary">Load Dashboard</button>
+        <button id="clearBtn" class="btn">Clear</button>
+      </div>
+    </section>
+
+    <p id="statusBar" class="status"></p>
+
+    <section class="grid grid-3">
+      <article class="card">
+        <h2>User Information</h2>
+        <pre id="userInfo" class="mono">Select a user and machine.</pre>
+      </article>
+      <article class="card">
+        <h2>Machine Information</h2>
+        <pre id="machineInfo" class="mono">-</pre>
+      </article>
+      <article class="card">
+        <h2>Machine Status</h2>
+        <pre id="machineStatus" class="mono">-</pre>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>Lockers</h2>
+      <p class="legend">
+        <span class="dot dot-green"></span> available
+        <span class="dot dot-red"></span> sold
+        <span class="dot dot-orange"></span> left open
+      </p>
+      <div id="lockerGrid" class="locker-grid"></div>
+    </section>
+
+    <section class="grid grid-2">
+      <article class="card">
+        <h2>Locker Commands</h2>
+        <p id="selectedLockerText" class="subtle">No locker selected</p>
+        <div class="form-row">
+          <label for="lockerPrice">Price</label>
+          <input id="lockerPrice" type="number" step="0.01" min="0" placeholder="e.g. 12.50" />
+          <button id="setPriceBtn" class="btn">Set price</button>
+        </div>
+        <div class="form-row">
+          <label>Color RGB</label>
+          <div class="rgb-row">
+            <input id="colorR" type="number" min="0" max="255" placeholder="R" />
+            <input id="colorG" type="number" min="0" max="255" placeholder="G" />
+            <input id="colorB" type="number" min="0" max="255" placeholder="B" />
+          </div>
+          <button id="setColorBtn" class="btn">Set color</button>
+        </div>
+        <div class="form-row">
+          <label for="lightingMode">Lighting mode</label>
+          <input id="lightingMode" type="number" min="0" max="10" placeholder="0..10" />
+          <button id="setLightingBtn" class="btn">Set lighting</button>
+        </div>
+        <div class="command-row">
+          <button id="openLockerBtn" class="btn btn-primary">Open locker</button>
+          <button id="checkClosedBtn" class="btn">Check closed</button>
+          <button id="toggleSoldBtn" class="btn">Toggle sold</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Machine Commands</h2>
+        <div class="form-row">
+          <label for="setTemp">Set temperature (°C)</label>
+          <input id="setTemp" type="number" step="0.1" placeholder="e.g. 7.5" />
+          <button id="setTempBtn" class="btn">Set temperature</button>
+        </div>
+        <div class="form-row">
+          <label for="fanMode">Set fans</label>
+          <input id="fanMode" type="number" min="0" max="10" placeholder="0..10" />
+          <button id="setFansBtn" class="btn">Set fans</button>
+        </div>
+        <div class="form-row">
+          <label for="opMode">Set operation mode</label>
+          <select id="opMode">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+          <button id="setOpModeBtn" class="btn">Set operation mode</button>
+        </div>
+        <div class="command-row">
+          <button id="refreshStatusBtn" class="btn">Refresh status</button>
+          <button id="clearErrorBtn" class="btn">Clear error</button>
+          <button id="rebootRpiBtn" class="btn">Reboot RPI</button>
+          <button id="rebootStmBtn" class="btn">Reboot STM32</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid grid-2">
+      <article class="card">
+        <h2>Admin Statistics</h2>
+        <pre id="adminStats" class="mono">Only shown for admin users.</pre>
+      </article>
+      <article class="card">
+        <h2>Recent Activity</h2>
+        <pre id="activityLogs" class="mono">-</pre>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>Supported Commands</h2>
+      <ul id="commandList" class="command-list"></ul>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 const state = {
-  apiBaseUrl: "",
+  apiBaseUrl: "https://jurybgx4k4.execute-api.eu-central-1.amazonaws.com/dev",
   users: [],
   machines: [],
   membershipsByCompany: new Map(),

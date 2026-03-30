@@ -69,8 +69,12 @@ function jsonPretty(obj) {
 
 async function api(path, options = {}) {
   const url = `${state.apiBaseUrl}${path}`;
+  const method = (options.method || "GET").toUpperCase();
+  const defaultHeaders = method === "GET" || method === "HEAD"
+    ? {}
+    : { "Content-Type": "application/json" };
   const headers = {
-    "Content-Type": "application/json",
+    ...defaultHeaders,
     ...(options.headers || {}),
   };
 
@@ -81,7 +85,8 @@ async function api(path, options = {}) {
     const reason = location.protocol === "file:"
       ? "Browser blocked request from file:// (CORS). Open frontend via http:// or enable CORS on API."
       : "Network/CORS error while calling API.";
-    throw new Error(`${reason} URL=${url}`);
+    const details = e instanceof Error ? e.message : String(e);
+    throw new Error(`${reason} URL=${url} DETAILS=${details}`);
   }
   const text = await response.text();
   let data = null;
@@ -93,7 +98,7 @@ async function api(path, options = {}) {
 
   if (!response.ok) {
     const msg = (data && (data.error || data.message)) || `HTTP ${response.status}`;
-    throw new Error(msg);
+    throw new Error(`${msg} (HTTP ${response.status})`);
   }
   return data;
 }

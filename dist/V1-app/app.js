@@ -1,5 +1,5 @@
 const state = {
-  apiBaseUrl: "https://nyetm5ibma.eu-central-1.awsapprunner.com",
+  apiBaseUrl: "",
   users: [],
   machines: [],
   membershipsByCompany: new Map(),
@@ -201,6 +201,9 @@ async function fetchMembershipForCompany(companyId) {
 
 async function loadInitial() {
   state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
+  if (!state.apiBaseUrl) {
+    throw new Error("API URL is empty. Paste the ApiUrl output from DevApplicationStack (execute-api URL).");
+  }
   const [users, machines, commands] = await Promise.all([
     api("/users"),
     api("/machines"),

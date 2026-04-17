@@ -1,5 +1,5 @@
 const state = {
-  apiBaseUrl: "https://jurybgx4k4.execute-api.eu-central-1.amazonaws.com/dev",
+  apiBaseUrl: "https://xaufumsuck.execute-api.eu-central-1.amazonaws.com",
   users: [],
   machines: [],
   membershipsByCompany: new Map(),
@@ -207,7 +207,7 @@ async function fetchMembershipForCompany(companyId) {
 async function loadInitial() {
   state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
   if (!state.apiBaseUrl) {
-    throw new Error("API URL is empty. Paste the ApiUrl output from DevApplicationStack (execute-api URL).");
+    throw new Error("API URL is empty. Paste the HttpApiUrl output from CoreDataPlatformStack (execute-api URL).");
   }
   const [users, machines, commands] = await Promise.all([
     api("/users"),

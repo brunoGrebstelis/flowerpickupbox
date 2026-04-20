@@ -1,5 +1,21 @@
+const DEFAULT_API_BASE_URL = "https://xaufumsuck.execute-api.eu-central-1.amazonaws.com";
+
+function resolveInitialApiBaseUrl() {
+  const fromQuery = new URLSearchParams(window.location.search).get("api");
+  if (fromQuery && fromQuery.trim()) {
+    return fromQuery.trim().replace(/\/$/, "");
+  }
+
+  const fromStorage = (localStorage.getItem("apiBaseUrl") || "").trim();
+  if (fromStorage) {
+    return fromStorage.replace(/\/$/, "");
+  }
+
+  return DEFAULT_API_BASE_URL;
+}
+
 const state = {
-  apiBaseUrl: "https://xaufumsuck.execute-api.eu-central-1.amazonaws.com",
+  apiBaseUrl: resolveInitialApiBaseUrl(),
   users: [],
   machines: [],
   membershipsByCompany: new Map(),
@@ -209,6 +225,7 @@ async function loadInitial() {
   if (!state.apiBaseUrl) {
     throw new Error("API URL is empty. Paste the HttpApiUrl output from CoreDataPlatformStack (execute-api URL).");
   }
+  localStorage.setItem("apiBaseUrl", state.apiBaseUrl);
   const [users, machines, commands] = await Promise.all([
     api("/users"),
     api("/machines"),
@@ -593,8 +610,13 @@ function clearAll() {
 }
 
 function wireEvents() {
+  el.apiBaseUrl.value = state.apiBaseUrl;
+
   el.apiBaseUrl.addEventListener("change", () => {
     state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
+    if (state.apiBaseUrl) {
+      localStorage.setItem("apiBaseUrl", state.apiBaseUrl);
+    }
   });
 
   el.userSelect.addEventListener("change", () => {

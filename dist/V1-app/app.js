@@ -399,6 +399,11 @@ function compactObject(value) {
   );
 }
 
+function formatCommandSentMessage(label, response) {
+  const requestId = response?.request_id ? ` request_id=${response.request_id}` : "";
+  return `${label} command sent to selected machine.${requestId}`;
+}
+
 async function publishMachineCommand(commandId, params = {}, lockerId = null) {
   if (!state.selectedUserId || !state.selectedMachineId) {
     throw new Error("Choose a user and machine first.");
@@ -429,20 +434,7 @@ async function createActivity(commandId, payload, successful = true) {
   });
 }
 
-async function createAlert(alertId) {
-  const locker = getSelectedLocker();
-  await api("/alert_logs", {
-    method: "POST",
-    body: JSON.stringify({
-      machine_id: state.selectedMachineId,
-      locker_id: locker ? locker.locker_id : null,
-      locker_number: locker ? locker.locker_number : null,
-      alert_id: alertId,
-    }),
-  });
-}
-
-async function updateLocker(patch, alertId = null) {
+async function updateLocker(patch) {
   if (!requireContext({ locker: true })) return;
 
   await api(`/lockers/${state.selectedLockerId}`, {
@@ -450,34 +442,6 @@ async function updateLocker(patch, alertId = null) {
     body: JSON.stringify(patch),
   });
 
-  if (alertId) {
-    await createAlert(alertId);
-  }
-
-  await loadDashboard();
-}
-
-async function updateMachineStatusPatch(patch) {
-  if (!requireContext()) return;
-
-  const current = state.machineStatus || await api(`/machine_status/${state.selectedMachineId}`).catch(() => null);
-  const merged = {
-    current_temperature: current?.current_temperature ?? 0,
-    current_humidity: current?.current_humidity ?? 0,
-    set_temperature: current?.set_temperature ?? 0,
-    op_mode: current?.op_mode ?? true,
-    fan_mode: current?.fan_mode ?? 0,
-    water_status: current?.water_status ?? true,
-    internet_connected: current?.internet_connected ?? true,
-    rpi_alive: current?.rpi_alive ?? true,
-    stm32_alive: current?.stm32_alive ?? true,
-    ...patch,
-  };
-
-  await api(`/machine_status/${state.selectedMachineId}`, {
-    method: "POST",
-    body: JSON.stringify(merged),
-  });
   await loadDashboard();
 }
 
@@ -492,32 +456,16 @@ function renderCommandDefinitions(commands) {
 
 async function handleOpenLocker() {
   if (!requireContext({ locker: true })) return;
-  await publishMachineCommand(1, { is_open: true }, state.selectedLockerId);
-  await updateLocker({ is_open: true }, 2);
-  setStatus("Locker opened command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(1, {}, state.selectedLockerId);
+  await loadDashboard();
+  setStatus(formatCommandSentMessage("Open locker", response), true);
 }
 
 async function handleCheckClosed() {
   if (!requireContext({ locker: true })) return;
-  await publishMachineCommand(5, { action: "check_locker_closed" }, state.selectedLockerId);
-  const locker = await api(`/lockers/${state.selectedLockerId}`);
-  const isOpen = Boolean(locker.is_open);
-
-  if (isOpen) {
-    await api("/error_logs", {
-      method: "POST",
-      body: JSON.stringify({
-        machine_id: state.selectedMachineId,
-        locker_id: locker.locker_id,
-        locker_number: locker.locker_number,
-        error_id: 1,
-      }),
-    });
-    setStatus("Locker still open. Error log created.");
-  } else {
-    setStatus("Locker is closed.", true);
-  }
+  const response = await publishMachineCommand(5, {}, state.selectedLockerId);
   await loadDashboard();
+  setStatus(formatCommandSentMessage("Check locker closed", response), true);
 }
 
 async function handleSetPrice() {
@@ -527,9 +475,9 @@ async function handleSetPrice() {
     setStatus("Price must be a number >= 0.");
     return;
   }
-  await publishMachineCommand(2, { price }, state.selectedLockerId);
-  await updateLocker({ price }, 4);
-  setStatus("Locker price command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(2, { price }, state.selectedLockerId);
+  await loadDashboard();
+  setStatus(formatCommandSentMessage("Set locker price", response), true);
 }
 
 async function handleSetColor() {
@@ -542,9 +490,9 @@ async function handleSetColor() {
     setStatus("RGB values must be integers between 0 and 255.");
     return;
   }
-  await publishMachineCommand(3, { color_r, color_g, color_b }, state.selectedLockerId);
-  await updateLocker({ color_r, color_g, color_b }, 5);
-  setStatus("Locker color command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(3, { color_r, color_g, color_b }, state.selectedLockerId);
+  await loadDashboard();
+  setStatus(formatCommandSentMessage("Set locker color", response), true);
 }
 
 async function handleSetLighting() {
@@ -554,15 +502,15 @@ async function handleSetLighting() {
     setStatus("Lighting mode must be integer 0..10.");
     return;
   }
-  await publishMachineCommand(4, { lighting_mode }, state.selectedLockerId);
-  await updateLocker({ lighting_mode }, 5);
-  setStatus("Lighting mode command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(4, { lighting_mode }, state.selectedLockerId);
+  await loadDashboard();
+  setStatus(formatCommandSentMessage("Set lighting mode", response), true);
 }
 
 async function handleToggleSold() {
   if (!requireContext({ locker: true })) return;
   const locker = getSelectedLocker();
-  await updateLocker({ sold: !locker.sold }, 4);
+  await updateLocker({ sold: !locker.sold });
   await createActivity(2, { sold: !locker.sold }, true);
   setStatus(`Locker sold state changed to ${!locker.sold}.`, true);
 }
@@ -574,10 +522,9 @@ async function handleSetTemperature() {
     setStatus("Set temperature must be numeric.");
     return;
   }
-  await publishMachineCommand(6, { set_temperature });
-  await updateMachineStatusPatch({ set_temperature });
-  await createAlert(6);
-  setStatus("Temperature command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(6, { set_temperature });
+  await loadDashboard();
+  setStatus(formatCommandSentMessage("Set temperature", response), true);
 }
 
 async function handleSetFans() {
@@ -587,46 +534,45 @@ async function handleSetFans() {
     setStatus("Fan mode must be integer 0..255.");
     return;
   }
-  await publishMachineCommand(7, { fan_mode });
-  await updateMachineStatusPatch({ fan_mode });
-  setStatus("Fan mode command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(7, { fan_mode });
+  await loadDashboard();
+  setStatus(formatCommandSentMessage("Set fan mode", response), true);
 }
 
 async function handleSetOperationMode() {
   if (!requireContext()) return;
   const op_mode = el.opMode.value === "true";
-  await publishMachineCommand(8, { op_mode });
-  await updateMachineStatusPatch({ op_mode });
-  await createAlert(7);
-  setStatus("Operation mode command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(8, { op_mode });
+  await loadDashboard();
+  setStatus(formatCommandSentMessage("Set operation mode", response), true);
 }
 
 async function handleRefreshStatus() {
   if (!requireContext()) return;
-  await publishMachineCommand(9, { action: "refresh_dashboard" });
+  const response = await publishMachineCommand(9, { action: "refresh_dashboard" });
   await loadDashboard();
-  setStatus("Refresh status command sent via AWS IoT.", true);
+  setStatus(formatCommandSentMessage("Refresh status", response), true);
 }
 
 async function handleClearError() {
   if (!requireContext()) return;
-  await publishMachineCommand(10, { action: "clear_error" });
-  setStatus("Clear error command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(10, { action: "clear_error" });
   await loadDashboard();
+  setStatus(formatCommandSentMessage("Clear error", response), true);
 }
 
 async function handleRebootRpi() {
   if (!requireContext()) return;
-  await publishMachineCommand(11, { action: "reboot_rpi" });
-  setStatus("Reboot RPI command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(11, { action: "reboot_rpi" });
   await loadDashboard();
+  setStatus(formatCommandSentMessage("Reboot RPI", response), true);
 }
 
 async function handleRebootStm32() {
   if (!requireContext()) return;
-  await publishMachineCommand(12, { action: "reboot_stm32" });
-  setStatus("Reboot STM32 command sent via AWS IoT.", true);
+  const response = await publishMachineCommand(12, { action: "reboot_stm32" });
   await loadDashboard();
+  setStatus(formatCommandSentMessage("Reboot STM32", response), true);
 }
 
 function clearAll() {

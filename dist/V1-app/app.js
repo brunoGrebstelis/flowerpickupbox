@@ -583,8 +583,8 @@ async function handleSetTemperature() {
 async function handleSetFans() {
   if (!requireContext()) return;
   const fan_mode = Number(el.fanMode.value);
-  if (!Number.isInteger(fan_mode) || fan_mode < 0 || fan_mode > 2555) {
-    setStatus("Fan mode must be integer 0..2555.");
+  if (!Number.isInteger(fan_mode) || fan_mode < 0 || fan_mode > 255) {
+    setStatus("Fan mode must be integer 0..255.");
     return;
   }
   await publishMachineCommand(7, { fan_mode });

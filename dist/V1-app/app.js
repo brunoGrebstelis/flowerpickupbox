@@ -540,6 +540,7 @@ function syncSelectedLockerFormFields() {
   const locker = getSelectedLocker();
   if (!locker) {
     el.lockerPrice.value = "";
+    el.lockerPrice.dataset.fromDb = "0";
     el.colorR.value = "";
     el.colorG.value = "";
     el.colorB.value = "";
@@ -547,9 +548,25 @@ function syncSelectedLockerFormFields() {
   }
 
   el.lockerPrice.value = locker.price ?? "";
+  el.lockerPrice.dataset.fromDb = "1";
   el.colorR.value = locker.color_r ?? "";
   el.colorG.value = locker.color_g ?? "";
   el.colorB.value = locker.color_b ?? "";
+}
+
+function scrollLockerCommandsIntoViewOnMobile() {
+  if (!window.matchMedia("(max-width: 768px)").matches) {
+    return;
+  }
+
+  const commandsCard = el.selectedLockerText ? el.selectedLockerText.closest(".card") : null;
+  if (!commandsCard) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    commandsCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function lockerColorClass(locker) {
@@ -586,6 +603,7 @@ function renderLockers() {
       state.lightingModeValue = Number.isInteger(Number(locker.lighting_mode)) ? Number(locker.lighting_mode) : 0;
       renderLockers();
       renderLightingModes();
+      scrollLockerCommandsIntoViewOnMobile();
     });
     el.lockerGrid.appendChild(button);
   });
@@ -949,8 +967,8 @@ async function handleOpenLocker() {
 async function handleSetPrice() {
   if (!requireContext({ locker: true })) return;
   const price = Number(el.lockerPrice.value);
-  if (!Number.isFinite(price) || price < 0) {
-    setStatus("Price must be a number >= 0.");
+  if (!Number.isFinite(price) || price < 0 || price > 9999) {
+    setStatus("Price must be a number between 0 and 9999.");
     return;
   }
   await sendCommandAndRefresh(COMMAND_IDS.SET_LOCKER_PRICE, { price }, state.selectedLockerId, "Set locker price");
@@ -1086,6 +1104,29 @@ async function restoreSelectionAndAutoloadDashboard() {
 
 function wireEvents() {
   el.apiBaseUrl.value = state.apiBaseUrl;
+
+  [el.lockerPrice, el.colorR, el.colorG, el.colorB, el.setTemp].forEach((input) => {
+    if (!input) return;
+    input.addEventListener("focus", () => {
+      if (input.value !== "") {
+        input.select();
+      }
+    });
+  });
+
+  el.lockerPrice.addEventListener("pointerdown", () => {
+    if (document.activeElement === el.lockerPrice && el.lockerPrice.dataset.fromDb === "1") {
+      el.lockerPrice.value = "";
+      el.lockerPrice.dataset.fromDb = "0";
+    }
+  });
+
+  el.lockerPrice.addEventListener("focus", () => {
+    if (el.lockerPrice.dataset.fromDb === "1") {
+      el.lockerPrice.value = "";
+      el.lockerPrice.dataset.fromDb = "0";
+    }
+  });
 
   el.apiBaseUrl.addEventListener("change", () => {
     state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");

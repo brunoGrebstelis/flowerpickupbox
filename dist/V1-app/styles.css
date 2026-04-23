@@ -19,6 +19,7 @@ body {
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
+  -webkit-text-size-adjust: 100%;
 }
 
 .app-shell {
@@ -91,12 +92,26 @@ button {
   border-radius: 10px;
   border: 1px solid var(--border);
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: 15px;
+  min-height: 42px;
+}
+
+input,
+select {
+  width: 100%;
+  background: #fff;
+  color: var(--text);
 }
 
 button {
   background: #fff;
   cursor: pointer;
+  font-weight: 600;
+}
+
+.btn {
+  min-height: 42px;
+  padding: 10px 14px;
 }
 
 button:hover {
@@ -159,6 +174,101 @@ h2 {
   border-radius: 10px;
   padding: 10px;
   min-height: 110px;
+}
+
+.info-list,
+.activity-list {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  background: #f8f9fc;
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 110px;
+}
+
+.info-item {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: start;
+  gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #dce3ef;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #22314c;
+  word-break: break-word;
+}
+
+.placeholder {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.activity-item {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e4e8ef;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.activity-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.activity-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.activity-result {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.activity-result.ok {
+  color: #1a7f3a;
+  background: #eaf8ef;
+  border: 1px solid #b7e8c5;
+}
+
+.activity-result.fail {
+  color: #b7202e;
+  background: #feeff1;
+  border: 1px solid #f7cad1;
+}
+
+.activity-text {
+  font-size: 14px;
+  color: #22314c;
+  line-height: 1.35;
 }
 
 .legend {
@@ -239,6 +349,75 @@ h2 {
   margin-bottom: 8px;
 }
 
+.mode-block {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fan-button-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.state-btn,
+.state-toggle,
+.lighting-mode-btn {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.state-btn.on,
+.state-toggle.on,
+.lighting-mode-btn.active {
+  background: #eaf8ef;
+  color: #1a7f3a;
+  border-color: #84d39c;
+}
+
+.state-btn.off,
+.state-toggle.off,
+.lighting-mode-btn {
+  background: #feeff1;
+  color: #b7202e;
+  border-color: #f2b9c3;
+}
+
+.state-btn.auto {
+  background: #eef3ff;
+  color: #254b9c;
+  border-color: #b8c8ef;
+}
+
+.state-btn.auto.active {
+  background: #dce8ff;
+  color: #173978;
+  border-color: #7ea0e8;
+}
+
+.lighting-mode-list {
+  display: grid;
+  gap: 8px;
+}
+
+.lighting-mode-btn {
+  width: 100%;
+  text-align: center;
+  background: #f2f3f6;
+  color: #3f4654;
+  border-color: #cfd5df;
+}
+
+.lighting-mode-btn:hover {
+  border-color: #aeb8c8;
+}
+
 .rgb-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -277,5 +456,50 @@ h2 {
 
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .fan-button-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .info-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .top-card h1 {
+    font-size: 22px;
+  }
+
+  input,
+  select,
+  button,
+  .btn,
+  .state-btn,
+  .state-toggle,
+  .lighting-mode-btn {
+    font-size: 16px;
+    min-height: 48px;
+    padding: 12px 14px;
+  }
+
+  .fan-button-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .locker-btn {
+    min-height: 96px;
+    font-size: 18px;
+  }
+
+  .locker-btn small {
+    font-size: 13px;
   }
 }

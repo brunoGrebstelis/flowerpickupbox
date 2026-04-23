@@ -1,12 +1,49 @@
 const DEFAULT_API_BASE_URL = "https://xaufumsuck.execute-api.eu-central-1.amazonaws.com";
 
+const STORAGE_KEYS = {
+  apiBaseUrl: "apiBaseUrl",
+  selectedUserId: "selectedUserId",
+  selectedMachineId: "selectedMachineId",
+};
+
+const COMMAND_IDS = {
+  OPEN_LOCKER: 1,
+  SET_LOCKER_PRICE: 2,
+  SET_LOCKER_COLOR: 3,
+  SET_LIGHTING_MODE: 4,
+  CHECK_LOCKER_CLOSED: 5,
+  SET_TEMPERATURE: 6,
+  SET_FANS: 7,
+  SET_OPERATION_MODE: 8,
+  REFRESH_STATUS: 9,
+  CLEAR_ERROR: 10,
+  REBOOT_RPI: 11,
+  REBOOT_STM32: 12,
+};
+
+const LIGHTING_MODES = [
+  { value: 1, label: "Mode 1 — V-day" },
+  { value: 2, label: "Mode 2 — Disco" },
+  { value: 3, label: "Mode 3 — Psychedelic" },
+  { value: 4, label: "Mode 4 — Welcome" },
+  { value: 5, label: "Mode 5 — Solid Disco" },
+];
+
+const FAN_BUTTONS = [
+  { key: "fan1", label: "Fan1", bit: 128 },
+  { key: "fan2", label: "Fan2", bit: 64 },
+  { key: "fan3", label: "Fan3", bit: 32 },
+  { key: "fan4", label: "Fan4", bit: 16 },
+  { key: "fan5", label: "Fan5", bit: 8 },
+];
+
 function resolveInitialApiBaseUrl() {
   const fromQuery = new URLSearchParams(window.location.search).get("api");
   if (fromQuery && fromQuery.trim()) {
     return fromQuery.trim().replace(/\/$/, "");
   }
 
-  const fromStorage = (localStorage.getItem("apiBaseUrl") || "").trim();
+  const fromStorage = (localStorage.getItem(STORAGE_KEYS.apiBaseUrl) || "").trim();
   if (fromStorage) {
     return fromStorage.replace(/\/$/, "");
   }
@@ -27,6 +64,21 @@ const state = {
   lockers: [],
   selectedLockerId: null,
   machineStatus: null,
+  activeCommandCount: 0,
+  requestTimeoutMs: 15000,
+  autoRefreshTimerId: null,
+  autoRefreshIntervalMs: 25000,
+  lightingModeValue: 0,
+  fanModeValue: 255,
+  opModeValue: false,
+  fanStates: {
+    fan1: false,
+    fan2: false,
+    fan3: false,
+    fan4: false,
+    fan5: false,
+    auto: true,
+  },
 };
 
 const el = {
@@ -45,26 +97,18 @@ const el = {
   colorR: document.getElementById("colorR"),
   colorG: document.getElementById("colorG"),
   colorB: document.getElementById("colorB"),
-  lightingMode: document.getElementById("lightingMode"),
+  lightingModeButtons: document.getElementById("lightingModeButtons"),
   openLockerBtn: document.getElementById("openLockerBtn"),
-  checkClosedBtn: document.getElementById("checkClosedBtn"),
   setPriceBtn: document.getElementById("setPriceBtn"),
   setColorBtn: document.getElementById("setColorBtn"),
-  setLightingBtn: document.getElementById("setLightingBtn"),
-  toggleSoldBtn: document.getElementById("toggleSoldBtn"),
   setTemp: document.getElementById("setTemp"),
-  fanMode: document.getElementById("fanMode"),
-  opMode: document.getElementById("opMode"),
   setTempBtn: document.getElementById("setTempBtn"),
-  setFansBtn: document.getElementById("setFansBtn"),
-  setOpModeBtn: document.getElementById("setOpModeBtn"),
-  refreshStatusBtn: document.getElementById("refreshStatusBtn"),
-  clearErrorBtn: document.getElementById("clearErrorBtn"),
+  fanButtons: document.getElementById("fanButtons"),
+  toggleOpModeBtn: document.getElementById("toggleOpModeBtn"),
   rebootRpiBtn: document.getElementById("rebootRpiBtn"),
   rebootStmBtn: document.getElementById("rebootStmBtn"),
   adminStats: document.getElementById("adminStats"),
   activityLogs: document.getElementById("activityLogs"),
-  commandList: document.getElementById("commandList"),
 };
 
 function setStatus(message, ok = false) {
@@ -75,15 +119,320 @@ function setStatus(message, ok = false) {
   }
 }
 
+function coerceBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off", ""].includes(normalized)) return false;
+  }
+  return Boolean(value);
+}
+
+function syncBusyUi() {
+  const busy = state.activeCommandCount > 0;
+  const staticButtons = [
+    el.loadBtn,
+    el.openLockerBtn,
+    el.setPriceBtn,
+    el.setColorBtn,
+    el.setTempBtn,
+    el.toggleOpModeBtn,
+    el.rebootRpiBtn,
+    el.rebootStmBtn,
+  ];
+
+  staticButtons
+    .filter(Boolean)
+    .forEach((button) => {
+      button.disabled = busy;
+    });
+
+  const dynamicButtons = [
+    ...(el.lockerGrid ? Array.from(el.lockerGrid.querySelectorAll("button")) : []),
+    ...(el.lightingModeButtons ? Array.from(el.lightingModeButtons.querySelectorAll("button")) : []),
+    ...(el.fanButtons ? Array.from(el.fanButtons.querySelectorAll("button")) : []),
+  ];
+
+  dynamicButtons.forEach((button) => {
+    button.disabled = busy;
+  });
+}
+
 function toDisplay(v) {
-  return v === null || v === undefined ? "-" : String(v);
+  return v === null || v === undefined || v === "" ? "-" : String(v);
 }
 
-function jsonPretty(obj) {
-  return JSON.stringify(obj, null, 2);
+function humanizeKey(key) {
+  return String(key || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
-async function api(path, options = {}) {
+function toLocalTime(value) {
+  if (!value) return "-";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) {
+    return String(value);
+  }
+  return dt.toLocaleString();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function bitmaskToFanStates(fanMode) {
+  const safeValue = Number.isInteger(fanMode) ? fanMode : 255;
+  if (safeValue === 255) {
+    return {
+      fan1: false,
+      fan2: false,
+      fan3: false,
+      fan4: false,
+      fan5: false,
+      auto: true,
+    };
+  }
+
+  return {
+    fan1: Boolean(safeValue & 128),
+    fan2: Boolean(safeValue & 64),
+    fan3: Boolean(safeValue & 32),
+    fan4: Boolean(safeValue & 16),
+    fan5: Boolean(safeValue & 8),
+    auto: false,
+  };
+}
+
+function fanStatesToBitmask(fanStates) {
+  if (fanStates.auto) return 255;
+  let value = 0;
+  FAN_BUTTONS.forEach((fan) => {
+    if (fanStates[fan.key]) {
+      value |= fan.bit;
+    }
+  });
+  return value;
+}
+
+function buildInfoEntriesFromObject(obj, preferredOrder = []) {
+  const source = obj && typeof obj === "object" ? obj : {};
+  const keys = [...preferredOrder, ...Object.keys(source).filter((k) => !preferredOrder.includes(k))];
+  const entries = [];
+  const booleanLikeKeys = new Set([
+    "is_active",
+    "is_open",
+    "sold",
+    "internet_connected",
+    "rpi_alive",
+    "stm32_alive",
+    "op_mode",
+  ]);
+
+  keys.forEach((key) => {
+    if (!(key in source)) return;
+    const raw = source[key];
+    if (raw === null || raw === undefined || raw === "") return;
+
+    let value = raw;
+    if (typeof raw === "boolean" || booleanLikeKeys.has(key)) {
+      const boolValue = coerceBoolean(raw);
+      value = key === "op_mode" ? (boolValue ? "ON" : "OFF") : (boolValue ? "Yes" : "No");
+    } else if (/(_at|_time|heartbeat)$/i.test(key)) {
+      value = toLocalTime(raw);
+    } else if (typeof raw === "number") {
+      value = Number.isFinite(raw) ? String(raw) : "-";
+    }
+
+    entries.push({
+      label: humanizeKey(key),
+      value: toDisplay(value),
+    });
+  });
+
+  return entries;
+}
+
+function renderInfoList(target, entries, emptyText = "-") {
+  target.innerHTML = "";
+
+  if (!entries || !entries.length) {
+    const p = document.createElement("p");
+    p.className = "placeholder";
+    p.textContent = emptyText;
+    target.appendChild(p);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement("div");
+    row.className = "info-item";
+
+    const label = document.createElement("div");
+    label.className = "info-label";
+    label.textContent = entry.label;
+
+    const value = document.createElement("div");
+    value.className = "info-value";
+    value.textContent = entry.value;
+
+    row.appendChild(label);
+    row.appendChild(value);
+    target.appendChild(row);
+  });
+}
+
+function parseActivityData(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  if (typeof raw !== "string") return {};
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return { text: raw };
+  }
+}
+
+function buildActivityText(log, activityData) {
+  if (activityData.text) {
+    return String(activityData.text);
+  }
+
+  if (typeof log.activity_data === "string" && log.activity_data.trim()) {
+    return log.activity_data;
+  }
+
+  const commandId = Number(log.command_id || activityData.command_id || 0);
+  const commandKey = String(activityData.command_key || "").trim();
+  const commandName = commandKey
+    ? humanizeKey(commandKey)
+    : commandId
+      ? `Command #${commandId}`
+      : "Action";
+
+  const lockerPart = log.locker_id ? ` locker #${log.locker_id}` : "";
+  const machinePart = log.machine_id ? ` on machine #${log.machine_id}` : "";
+  return `${commandName}${lockerPart}${machinePart}.`;
+}
+
+function renderActivityLogs(logs) {
+  el.activityLogs.innerHTML = "";
+
+  if (!logs || !logs.length) {
+    const p = document.createElement("p");
+    p.className = "placeholder";
+    p.textContent = "No activity logs found.";
+    el.activityLogs.appendChild(p);
+    return;
+  }
+
+  logs.forEach((log) => {
+    const activityData = parseActivityData(log.activity_data);
+    const item = document.createElement("div");
+    item.className = "activity-item";
+
+    const top = document.createElement("div");
+    top.className = "activity-top";
+
+    const time = document.createElement("span");
+    time.className = "activity-time";
+    time.textContent = toLocalTime(log.created_at || activityData.reported_at || activityData.accepted_at);
+
+    const result = document.createElement("span");
+    const success = coerceBoolean(log.successful);
+    result.className = `activity-result ${success ? "ok" : "fail"}`;
+    result.textContent = success ? "SUCCESS" : "FAILED";
+
+    top.appendChild(time);
+    top.appendChild(result);
+
+    const text = document.createElement("div");
+    text.className = "activity-text";
+    text.textContent = buildActivityText(log, activityData);
+
+    item.appendChild(top);
+    item.appendChild(text);
+    el.activityLogs.appendChild(item);
+  });
+}
+
+function applyOpModeButtonState(opModeValue) {
+  state.opModeValue = coerceBoolean(opModeValue);
+  if (!el.toggleOpModeBtn) return;
+
+  el.toggleOpModeBtn.classList.remove("on", "off");
+  el.toggleOpModeBtn.classList.add(state.opModeValue ? "on" : "off");
+  el.toggleOpModeBtn.textContent = `Operation mode: ${state.opModeValue ? "ON" : "OFF"}`;
+}
+
+function renderLightingModes() {
+  if (!el.lightingModeButtons) return;
+  el.lightingModeButtons.innerHTML = "";
+
+  LIGHTING_MODES.forEach((mode) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `lighting-mode-btn${state.lightingModeValue === mode.value ? " active" : ""}`;
+    button.textContent = mode.label;
+    button.addEventListener("click", () => {
+      handleSetLightingMode(mode.value).catch((e) => setStatus(`Set lighting failed: ${e.message}`));
+    });
+    el.lightingModeButtons.appendChild(button);
+  });
+
+  syncBusyUi();
+}
+
+function renderFanButtons() {
+  if (!el.fanButtons) return;
+  el.fanButtons.innerHTML = "";
+
+  FAN_BUTTONS.forEach((fan) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `state-btn ${state.fanStates[fan.key] ? "on" : "off"}`;
+    button.textContent = fan.label;
+    button.addEventListener("click", () => {
+      handleToggleFan(fan.key).catch((e) => setStatus(`Set fans failed: ${e.message}`));
+    });
+    el.fanButtons.appendChild(button);
+  });
+
+  const autoButton = document.createElement("button");
+  autoButton.type = "button";
+  autoButton.className = `state-btn auto${state.fanStates.auto ? " active" : ""}`;
+  autoButton.textContent = "Auto";
+  autoButton.addEventListener("click", () => {
+    handleSetFanAuto().catch((e) => setStatus(`Set fans failed: ${e.message}`));
+  });
+  el.fanButtons.appendChild(autoButton);
+
+  syncBusyUi();
+}
+
+function syncControlModesFromStatusAndLocker() {
+  const locker = getSelectedLocker();
+  state.lightingModeValue = locker && Number.isInteger(Number(locker.lighting_mode))
+    ? Number(locker.lighting_mode)
+    : 0;
+
+  const rawFanMode = state.machineStatus ? Number(state.machineStatus.fan_mode) : 255;
+  state.fanModeValue = Number.isInteger(rawFanMode) ? rawFanMode : 255;
+  state.fanStates = bitmaskToFanStates(state.fanModeValue);
+
+  const rawOpMode = state.machineStatus ? state.machineStatus.op_mode : false;
+  state.opModeValue = coerceBoolean(rawOpMode);
+
+  renderLightingModes();
+  renderFanButtons();
+  applyOpModeButtonState(state.opModeValue);
+}
+
+async function api(path, options = {}, attempt = 1) {
   const url = `${state.apiBaseUrl}${path}`;
   const method = (options.method || "GET").toUpperCase();
   const defaultHeaders = method === "GET" || method === "HEAD"
@@ -94,16 +443,29 @@ async function api(path, options = {}) {
     ...(options.headers || {}),
   };
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), state.requestTimeoutMs);
+
   let response;
   try {
-    response = await fetch(url, { ...options, headers });
+    response = await fetch(url, { ...options, headers, signal: controller.signal });
   } catch (e) {
+    clearTimeout(timeoutId);
+
+    if (attempt < 2) {
+      await sleep(250);
+      return api(path, options, attempt + 1);
+    }
+
     const reason = location.protocol === "file:"
       ? "Browser blocked request from file:// (CORS). Open frontend via http:// or enable CORS on API."
       : "Network/CORS error while calling API.";
     const details = e instanceof Error ? e.message : String(e);
     throw new Error(`${reason} URL=${url} DETAILS=${details}`);
+  } finally {
+    clearTimeout(timeoutId);
   }
+
   const text = await response.text();
   let data = null;
   try {
@@ -116,32 +478,46 @@ async function api(path, options = {}) {
     const msg = (data && (data.error || data.message)) || `HTTP ${response.status}`;
     throw new Error(`${msg} (HTTP ${response.status})`);
   }
+
   return data;
 }
 
-function getSelectedUser() {
-  return state.users.find((u) => u.user_id === state.selectedUserId) || null;
-}
-
-function getSelectedMachine() {
-  return state.machines.find((m) => m.machine_id === state.selectedMachineId) || null;
+function isRetryableCommandError(error) {
+  const message = String(error?.message || error || "");
+  return /Network\/CORS error|Failed to fetch|aborted|timeout|\(HTTP\s*5\d\d\)/i.test(message);
 }
 
 function getSelectedLocker() {
   return state.lockers.find((l) => l.locker_id === state.selectedLockerId) || null;
 }
 
+function persistSelection() {
+  if (state.selectedUserId) {
+    localStorage.setItem(STORAGE_KEYS.selectedUserId, String(state.selectedUserId));
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.selectedUserId);
+  }
+
+  if (state.selectedMachineId) {
+    localStorage.setItem(STORAGE_KEYS.selectedMachineId, String(state.selectedMachineId));
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.selectedMachineId);
+  }
+}
+
 function resetDashboard() {
-  el.userInfo.textContent = "Select a user and machine.";
-  el.machineInfo.textContent = "-";
-  el.machineStatus.textContent = "-";
-  el.adminStats.textContent = "Only shown for admin users.";
-  el.activityLogs.textContent = "-";
+  renderInfoList(el.userInfo, [], "Select a user and machine.");
+  renderInfoList(el.machineInfo, [], "-");
+  renderInfoList(el.machineStatus, [], "-");
+  renderInfoList(el.adminStats, [], "Only shown for admin users.");
+  renderActivityLogs([]);
   el.lockerGrid.innerHTML = "";
   state.lockers = [];
   state.selectedLockerId = null;
   state.machineStatus = null;
   setSelectedLockerText();
+  syncControlModesFromStatusAndLocker();
+  syncBusyUi();
 }
 
 function setSelectedLockerText() {
@@ -154,14 +530,14 @@ function setSelectedLockerText() {
 }
 
 function lockerColorClass(locker) {
-  if (locker.is_open) return "orange";
-  if (locker.sold) return "red";
+  if (coerceBoolean(locker.is_open)) return "orange";
+  if (coerceBoolean(locker.sold)) return "red";
   return "green";
 }
 
 function lockerStateLabel(locker) {
-  if (locker.is_open) return "OPEN";
-  if (locker.sold) return "SOLD";
+  if (coerceBoolean(locker.is_open)) return "OPEN";
+  if (coerceBoolean(locker.sold)) return "SOLD";
   return "FREE";
 }
 
@@ -183,11 +559,14 @@ function renderLockers() {
       el.colorR.value = locker.color_r ?? "";
       el.colorG.value = locker.color_g ?? "";
       el.colorB.value = locker.color_b ?? "";
-      el.lightingMode.value = locker.lighting_mode ?? "";
+      state.lightingModeValue = Number.isInteger(Number(locker.lighting_mode)) ? Number(locker.lighting_mode) : 0;
       renderLockers();
+      renderLightingModes();
     });
     el.lockerGrid.appendChild(button);
   });
+
+  syncBusyUi();
 }
 
 function populateUsers() {
@@ -220,22 +599,137 @@ async function fetchMembershipForCompany(companyId) {
   return users;
 }
 
+function withBusyAction(actionLabel, fn) {
+  state.activeCommandCount += 1;
+  if (state.activeCommandCount === 1) {
+    setStatus(`${actionLabel}...`, true);
+  }
+  syncBusyUi();
+
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      state.activeCommandCount = Math.max(0, state.activeCommandCount - 1);
+      syncBusyUi();
+    });
+}
+
+async function refreshDashboardAfterCommand() {
+  const delays = [0, 450, 900, 1400];
+  let lastError = null;
+
+  for (const delay of delays) {
+    if (delay > 0) {
+      await sleep(delay);
+    }
+    try {
+      await loadDashboard({ quiet: true });
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+}
+
+async function publishMachineCommand(commandId, params = {}, lockerId = null) {
+  if (!state.selectedUserId || !state.selectedMachineId) {
+    throw new Error("Choose a user and machine first.");
+  }
+
+  return api(`/machines/${state.selectedMachineId}/commands`, {
+    method: "POST",
+    body: JSON.stringify({
+      command_id: commandId,
+      user_id: state.selectedUserId,
+      locker_id: lockerId ?? null,
+      params,
+    }),
+  });
+}
+
+function requireContext({ locker = false } = {}) {
+  if (!state.selectedUserId) {
+    setStatus("Choose a user first.");
+    return false;
+  }
+  if (!state.selectedMachineId) {
+    setStatus("Choose a machine first.");
+    return false;
+  }
+  if (locker && !state.selectedLockerId) {
+    setStatus("Choose a locker first.");
+    return false;
+  }
+  return true;
+}
+
+async function sendCommandAndRefresh(commandId, params = {}, lockerId = null, statusLabel = "Command") {
+  if (state.activeCommandCount > 0) {
+    setStatus("Please wait for current command to finish.", true);
+    return null;
+  }
+
+  return withBusyAction(statusLabel, async () => {
+    let response = null;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        response = await publishMachineCommand(commandId, params, lockerId);
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2 && isRetryableCommandError(error)) {
+          await sleep(350);
+          continue;
+        }
+        break;
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    let refreshError = null;
+    try {
+      await refreshDashboardAfterCommand();
+    } catch (error) {
+      refreshError = error;
+    }
+
+    const requestId = response?.request_id ? ` request_id=${response.request_id}` : "";
+    if (refreshError) {
+      setStatus(`${statusLabel} command sent.${requestId} Dashboard refresh delayed.`, true);
+      window.setTimeout(() => {
+        loadDashboard({ quiet: true }).catch(() => {});
+      }, 1500);
+    } else {
+      setStatus(`${statusLabel} command sent.${requestId}`, true);
+    }
+
+    return response;
+  });
+}
+
 async function loadInitial() {
   state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
   if (!state.apiBaseUrl) {
     throw new Error("API URL is empty. Paste the HttpApiUrl output from CoreDataPlatformStack (execute-api URL).");
   }
-  localStorage.setItem("apiBaseUrl", state.apiBaseUrl);
-  const [users, machines, commands] = await Promise.all([
+
+  localStorage.setItem(STORAGE_KEYS.apiBaseUrl, state.apiBaseUrl);
+  const [users, machines] = await Promise.all([
     api("/users"),
     api("/machines"),
-    api("/command_definitions"),
   ]);
 
   state.users = users;
   state.machines = machines;
   populateUsers();
-  renderCommandDefinitions(commands);
   setStatus(`Loaded ${users.length} users and ${machines.length} machines.`, true);
 }
 
@@ -247,16 +741,14 @@ async function onUserSelected() {
   state.selectedRole = null;
   state.allowedMachines = [];
   populateMachines();
+  persistSelection();
 
   if (!state.selectedUserId) return;
 
   const allowed = [];
   for (const machine of state.machines) {
     const actors = await api(`/machines/${machine.machine_id}/actors`).catch(() => []);
-    const isAllowedForMachine = actors.some((x) => x.user_id === state.selectedUserId);
-    if (!isAllowedForMachine) {
-      continue;
-    }
+    if (!actors.some((x) => x.user_id === state.selectedUserId)) continue;
 
     const companyUsers = await fetchMembershipForCompany(machine.company_id);
     const membership = companyUsers.find((x) => x.user_id === state.selectedUserId) || null;
@@ -273,8 +765,11 @@ async function onUserSelected() {
 
   if (!allowed.length) {
     setStatus("Selected user has no allowed machines.");
+    persistSelection();
     return;
   }
+
+  persistSelection();
   setStatus(`Loaded ${allowed.length} allowed machines for selected user.`, true);
 }
 
@@ -284,21 +779,25 @@ function onMachineSelected() {
   if (!state.selectedMachineId) {
     state.selectedCompanyId = null;
     state.selectedRole = null;
+    persistSelection();
     return;
   }
 
   const selected = state.allowedMachines.find((x) => x.machine.machine_id === state.selectedMachineId);
   state.selectedCompanyId = selected ? selected.companyId : null;
   state.selectedRole = selected ? selected.role : null;
+  persistSelection();
 }
 
-async function loadDashboard() {
+async function loadDashboard(options = {}) {
+  const quiet = Boolean(options.quiet);
+
   if (!state.selectedUserId) {
-    setStatus("Choose a user.");
+    if (!quiet) setStatus("Choose a user.");
     return;
   }
   if (!state.selectedMachineId) {
-    setStatus("Choose a machine.");
+    if (!quiet) setStatus("Choose a machine.");
     return;
   }
 
@@ -324,20 +823,62 @@ async function loadDashboard() {
     company_id: state.selectedCompanyId,
   };
 
-  el.userInfo.textContent = jsonPretty(userInfo);
-  el.machineInfo.textContent = jsonPretty(machine);
-  el.machineStatus.textContent = status ? jsonPretty(status) : "No machine status found.";
-  el.activityLogs.textContent = activityLogs.length ? jsonPretty(activityLogs) : "No activity logs found.";
+  renderInfoList(
+    el.userInfo,
+    buildInfoEntriesFromObject(userInfo, ["name", "surname", "email", "is_active", "role", "company_id", "user_id"]),
+    "Select a user and machine."
+  );
 
+  renderInfoList(
+    el.machineInfo,
+    buildInfoEntriesFromObject(machine, [
+      "machine_code",
+      "machine_name",
+      "country",
+      "city",
+      "address",
+      "locker_amount",
+      "software_version",
+      "hardware_version",
+      "machine_id",
+      "company_id",
+    ]),
+    "No machine data found."
+  );
+
+  renderInfoList(
+    el.machineStatus,
+    status
+      ? buildInfoEntriesFromObject(status, [
+        "current_temperature",
+        "current_humidity",
+        "set_temperature",
+        "fan_mode",
+        "op_mode",
+        "water_status",
+        "internet_connected",
+        "rpi_alive",
+        "stm32_alive",
+        "last_heartbeat",
+        "updated_at",
+      ])
+      : [],
+    "No machine status found."
+  );
+
+  renderActivityLogs(activityLogs || []);
   renderLockers();
+  syncControlModesFromStatusAndLocker();
 
   if (state.selectedRole === "admin") {
     await loadAdminStats(machineId);
   } else {
-    el.adminStats.textContent = "Only shown for admin users.";
+    renderInfoList(el.adminStats, [], "Only shown for admin users.");
   }
 
-  setStatus("Dashboard loaded successfully.", true);
+  if (!quiet) {
+    setStatus("Dashboard loaded successfully.", true);
+  }
 }
 
 async function loadAdminStats(machineId) {
@@ -348,7 +889,6 @@ async function loadAdminStats(machineId) {
 
   const totalRevenue = purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const avgPurchase = purchases.length ? totalRevenue / purchases.length : 0;
-
   const temps = climate.map((c) => Number(c.temperature)).filter(Number.isFinite);
   const hums = climate.map((c) => Number(c.humidity)).filter(Number.isFinite);
 
@@ -356,116 +896,23 @@ async function loadAdminStats(machineId) {
   const min = (arr) => (arr.length ? Math.min(...arr) : 0);
   const max = (arr) => (arr.length ? Math.max(...arr) : 0);
 
-  const summary = {
-    purchases: {
-      total_purchases: purchases.length,
-      total_revenue_eur: Number(totalRevenue.toFixed(2)),
-      average_purchase_eur: Number(avgPurchase.toFixed(2)),
-    },
-    climate: {
-      total_logs: climate.length,
-      avg_temperature: Number(avg(temps).toFixed(2)),
-      min_temperature: Number(min(temps).toFixed(2)),
-      max_temperature: Number(max(temps).toFixed(2)),
-      avg_humidity: Number(avg(hums).toFixed(2)),
-      min_humidity: Number(min(hums).toFixed(2)),
-      max_humidity: Number(max(hums).toFixed(2)),
-      last_5: climate.slice(0, 5),
-    },
-  };
-
-  el.adminStats.textContent = jsonPretty(summary);
-}
-
-function requireContext({ locker = false } = {}) {
-  if (!state.selectedUserId) {
-    setStatus("Choose a user first.");
-    return false;
-  }
-  if (!state.selectedMachineId) {
-    setStatus("Choose a machine first.");
-    return false;
-  }
-  if (locker && !state.selectedLockerId) {
-    setStatus("Choose a locker first.");
-    return false;
-  }
-  return true;
-}
-
-function compactObject(value) {
-  return Object.fromEntries(
-    Object.entries(value || {}).filter(([, item]) => item !== undefined)
-  );
-}
-
-function formatCommandSentMessage(label, response) {
-  const requestId = response?.request_id ? ` request_id=${response.request_id}` : "";
-  return `${label} command sent to selected machine.${requestId}`;
-}
-
-async function publishMachineCommand(commandId, params = {}, lockerId = null) {
-  if (!state.selectedUserId || !state.selectedMachineId) {
-    throw new Error("Choose a user and machine first.");
-  }
-
-  return api(`/machines/${state.selectedMachineId}/commands`, {
-    method: "POST",
-    body: JSON.stringify({
-      command_id: commandId,
-      user_id: state.selectedUserId,
-      locker_id: lockerId ?? null,
-      params: compactObject(params),
-    }),
-  });
-}
-
-async function createActivity(commandId, payload, successful = true) {
-  await api("/activity_logs", {
-    method: "POST",
-    body: JSON.stringify({
-      user_id: state.selectedUserId,
-      machine_id: state.selectedMachineId,
-      locker_id: state.selectedLockerId,
-      command_id: commandId,
-      activity_data: JSON.stringify(payload || {}),
-      successful,
-    }),
-  });
-}
-
-async function updateLocker(patch) {
-  if (!requireContext({ locker: true })) return;
-
-  await api(`/lockers/${state.selectedLockerId}`, {
-    method: "PUT",
-    body: JSON.stringify(patch),
-  });
-
-  await loadDashboard();
-}
-
-function renderCommandDefinitions(commands) {
-  el.commandList.innerHTML = "";
-  commands.forEach((cmd) => {
-    const li = document.createElement("li");
-    li.textContent = `${cmd.command_id}. ${cmd.command_name} (${cmd.command_key}) — ${cmd.command_description}`;
-    el.commandList.appendChild(li);
-  });
+  renderInfoList(el.adminStats, buildInfoEntriesFromObject({
+    total_purchases: purchases.length,
+    total_revenue_eur: Number(totalRevenue.toFixed(2)),
+    average_purchase_eur: Number(avgPurchase.toFixed(2)),
+    climate_logs: climate.length,
+    avg_temperature: Number(avg(temps).toFixed(2)),
+    min_temperature: Number(min(temps).toFixed(2)),
+    max_temperature: Number(max(temps).toFixed(2)),
+    avg_humidity: Number(avg(hums).toFixed(2)),
+    min_humidity: Number(min(hums).toFixed(2)),
+    max_humidity: Number(max(hums).toFixed(2)),
+  }));
 }
 
 async function handleOpenLocker() {
   if (!requireContext({ locker: true })) return;
-  const response = await publishMachineCommand(1, {}, state.selectedLockerId);
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Open locker", response), true);
-}
-
-async function handleCheckClosed() {
-  if (!requireContext({ locker: true })) return;
-  const response = await publishMachineCommand(5, {}, state.selectedLockerId);
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Check locker closed", response), true);
+  await sendCommandAndRefresh(COMMAND_IDS.OPEN_LOCKER, {}, state.selectedLockerId, "Open locker");
 }
 
 async function handleSetPrice() {
@@ -475,9 +922,7 @@ async function handleSetPrice() {
     setStatus("Price must be a number >= 0.");
     return;
   }
-  const response = await publishMachineCommand(2, { price }, state.selectedLockerId);
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Set locker price", response), true);
+  await sendCommandAndRefresh(COMMAND_IDS.SET_LOCKER_PRICE, { price }, state.selectedLockerId, "Set locker price");
 }
 
 async function handleSetColor() {
@@ -490,29 +935,46 @@ async function handleSetColor() {
     setStatus("RGB values must be integers between 0 and 255.");
     return;
   }
-  const response = await publishMachineCommand(3, { color_r, color_g, color_b }, state.selectedLockerId);
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Set locker color", response), true);
+  await sendCommandAndRefresh(COMMAND_IDS.SET_LOCKER_COLOR, { color_r, color_g, color_b }, state.selectedLockerId, "Set locker color");
 }
 
-async function handleSetLighting() {
+async function handleSetLightingMode(modeValue) {
   if (!requireContext({ locker: true })) return;
-  const lighting_mode = Number(el.lightingMode.value);
-  if (!Number.isInteger(lighting_mode) || lighting_mode < 0 || lighting_mode > 10) {
-    setStatus("Lighting mode must be integer 0..10.");
+  if (!Number.isInteger(modeValue) || modeValue < 1 || modeValue > 5) {
+    setStatus("Lighting mode must be one of available modes.");
     return;
   }
-  const response = await publishMachineCommand(4, { lighting_mode }, state.selectedLockerId);
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Set lighting mode", response), true);
+
+  await sendCommandAndRefresh(
+    COMMAND_IDS.SET_LIGHTING_MODE,
+    { lighting_mode: modeValue },
+    state.selectedLockerId,
+    `Set lighting mode ${modeValue}`
+  );
 }
 
-async function handleToggleSold() {
-  if (!requireContext({ locker: true })) return;
-  const locker = getSelectedLocker();
-  await updateLocker({ sold: !locker.sold });
-  await createActivity(2, { sold: !locker.sold }, true);
-  setStatus(`Locker sold state changed to ${!locker.sold}.`, true);
+async function handleToggleFan(fanKey) {
+  if (!requireContext()) return;
+
+  const nextStates = {
+    ...state.fanStates,
+    auto: false,
+    [fanKey]: !state.fanStates[fanKey],
+  };
+  const fan_mode = fanStatesToBitmask(nextStates);
+
+  await sendCommandAndRefresh(COMMAND_IDS.SET_FANS, { fan_mode }, null, "Set fans");
+}
+
+async function handleSetFanAuto() {
+  if (!requireContext()) return;
+  await sendCommandAndRefresh(COMMAND_IDS.SET_FANS, { fan_mode: 255 }, null, "Set fans auto");
+}
+
+async function handleToggleOperationMode() {
+  if (!requireContext()) return;
+  const next = !state.opModeValue;
+  await sendCommandAndRefresh(COMMAND_IDS.SET_OPERATION_MODE, { op_mode: next }, null, "Set operation mode");
 }
 
 async function handleSetTemperature() {
@@ -522,57 +984,17 @@ async function handleSetTemperature() {
     setStatus("Set temperature must be numeric.");
     return;
   }
-  const response = await publishMachineCommand(6, { set_temperature });
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Set temperature", response), true);
-}
-
-async function handleSetFans() {
-  if (!requireContext()) return;
-  const fan_mode = Number(el.fanMode.value);
-  if (!Number.isInteger(fan_mode) || fan_mode < 0 || fan_mode > 255) {
-    setStatus("Fan mode must be integer 0..255.");
-    return;
-  }
-  const response = await publishMachineCommand(7, { fan_mode });
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Set fan mode", response), true);
-}
-
-async function handleSetOperationMode() {
-  if (!requireContext()) return;
-  const op_mode = el.opMode.value === "true";
-  const response = await publishMachineCommand(8, { op_mode });
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Set operation mode", response), true);
-}
-
-async function handleRefreshStatus() {
-  if (!requireContext()) return;
-  const response = await publishMachineCommand(9, { action: "refresh_dashboard" });
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Refresh status", response), true);
-}
-
-async function handleClearError() {
-  if (!requireContext()) return;
-  const response = await publishMachineCommand(10, { action: "clear_error" });
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Clear error", response), true);
+  await sendCommandAndRefresh(COMMAND_IDS.SET_TEMPERATURE, { set_temperature }, null, "Set temperature");
 }
 
 async function handleRebootRpi() {
   if (!requireContext()) return;
-  const response = await publishMachineCommand(11, { action: "reboot_rpi" });
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Reboot RPI", response), true);
+  await sendCommandAndRefresh(COMMAND_IDS.REBOOT_RPI, { action: "reboot_rpi" }, null, "Reboot RPI");
 }
 
 async function handleRebootStm32() {
   if (!requireContext()) return;
-  const response = await publishMachineCommand(12, { action: "reboot_stm32" });
-  await loadDashboard();
-  setStatus(formatCommandSentMessage("Reboot STM32", response), true);
+  await sendCommandAndRefresh(COMMAND_IDS.REBOOT_STM32, { action: "reboot_stm32" }, null, "Reboot STM32");
 }
 
 function clearAll() {
@@ -587,7 +1009,48 @@ function clearAll() {
   el.machineSelect.value = "";
   populateMachines();
   resetDashboard();
+  localStorage.removeItem(STORAGE_KEYS.selectedUserId);
+  localStorage.removeItem(STORAGE_KEYS.selectedMachineId);
   setStatus("");
+}
+
+function startAutoRefreshLoop() {
+  if (state.autoRefreshTimerId) {
+    window.clearInterval(state.autoRefreshTimerId);
+  }
+
+  state.autoRefreshTimerId = window.setInterval(() => {
+    if (!state.selectedUserId || !state.selectedMachineId) return;
+    if (state.activeCommandCount > 0) return;
+    if (document.visibilityState === "hidden") return;
+    loadDashboard({ quiet: true }).catch(() => {});
+  }, state.autoRefreshIntervalMs);
+}
+
+async function restoreSelectionAndAutoloadDashboard() {
+  const storedUserIdRaw = localStorage.getItem(STORAGE_KEYS.selectedUserId);
+  if (!storedUserIdRaw) return;
+
+  const storedUserId = Number(storedUserIdRaw);
+  if (!Number.isInteger(storedUserId)) return;
+  if (!state.users.some((u) => Number(u.user_id) === storedUserId)) return;
+
+  state.selectedUserId = storedUserId;
+  el.userSelect.value = String(storedUserId);
+  await onUserSelected();
+
+  const storedMachineIdRaw = localStorage.getItem(STORAGE_KEYS.selectedMachineId);
+  if (!storedMachineIdRaw) return;
+
+  const storedMachineId = Number(storedMachineIdRaw);
+  if (!Number.isInteger(storedMachineId)) return;
+  if (!state.allowedMachines.some((x) => Number(x.machine.machine_id) === storedMachineId)) return;
+
+  state.selectedMachineId = storedMachineId;
+  el.machineSelect.value = String(storedMachineId);
+  onMachineSelected();
+  persistSelection();
+  await loadDashboard();
 }
 
 function wireEvents() {
@@ -596,7 +1059,7 @@ function wireEvents() {
   el.apiBaseUrl.addEventListener("change", () => {
     state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
     if (state.apiBaseUrl) {
-      localStorage.setItem("apiBaseUrl", state.apiBaseUrl);
+      localStorage.setItem(STORAGE_KEYS.apiBaseUrl, state.apiBaseUrl);
     }
   });
 
@@ -609,23 +1072,21 @@ function wireEvents() {
   el.clearBtn.addEventListener("click", clearAll);
 
   el.openLockerBtn.addEventListener("click", () => handleOpenLocker().catch((e) => setStatus(`Open locker failed: ${e.message}`)));
-  el.checkClosedBtn.addEventListener("click", () => handleCheckClosed().catch((e) => setStatus(`Check closed failed: ${e.message}`)));
   el.setPriceBtn.addEventListener("click", () => handleSetPrice().catch((e) => setStatus(`Set price failed: ${e.message}`)));
   el.setColorBtn.addEventListener("click", () => handleSetColor().catch((e) => setStatus(`Set color failed: ${e.message}`)));
-  el.setLightingBtn.addEventListener("click", () => handleSetLighting().catch((e) => setStatus(`Set lighting failed: ${e.message}`)));
-  el.toggleSoldBtn.addEventListener("click", () => handleToggleSold().catch((e) => setStatus(`Toggle sold failed: ${e.message}`)));
-
   el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
-  el.setFansBtn.addEventListener("click", () => handleSetFans().catch((e) => setStatus(`Set fans failed: ${e.message}`)));
-  el.setOpModeBtn.addEventListener("click", () => handleSetOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
-  el.refreshStatusBtn.addEventListener("click", () => handleRefreshStatus().catch((e) => setStatus(`Refresh failed: ${e.message}`)));
-  el.clearErrorBtn.addEventListener("click", () => handleClearError().catch((e) => setStatus(`Clear error failed: ${e.message}`)));
+  el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
   el.rebootRpiBtn.addEventListener("click", () => handleRebootRpi().catch((e) => setStatus(`Reboot RPI failed: ${e.message}`)));
   el.rebootStmBtn.addEventListener("click", () => handleRebootStm32().catch((e) => setStatus(`Reboot STM32 failed: ${e.message}`)));
 }
 
 async function init() {
   wireEvents();
+  renderLightingModes();
+  renderFanButtons();
+  applyOpModeButtonState(false);
+  syncBusyUi();
+  startAutoRefreshLoop();
 
   if (location.protocol === "file:") {
     setStatus("You opened frontend as file://. Browser will often block API calls (CORS). Open it with an http server.");
@@ -633,9 +1094,11 @@ async function init() {
 
   try {
     await loadInitial();
+    await restoreSelectionAndAutoloadDashboard();
   } catch (e) {
     setStatus(`Failed to initialize frontend: ${e.message}`);
   }
 }
 
 init();
+

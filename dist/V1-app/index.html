@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Flower Pickup Box Control</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -43,15 +43,21 @@
     <section class="grid grid-3">
       <article class="card">
         <h2>User Information</h2>
-        <pre id="userInfo" class="mono">Select a user and machine.</pre>
+        <div id="userInfo" class="info-list">
+          <p class="placeholder">Select a user and machine.</p>
+        </div>
       </article>
       <article class="card">
         <h2>Machine Information</h2>
-        <pre id="machineInfo" class="mono">-</pre>
+        <div id="machineInfo" class="info-list">
+          <p class="placeholder">-</p>
+        </div>
       </article>
       <article class="card">
         <h2>Machine Status</h2>
-        <pre id="machineStatus" class="mono">-</pre>
+        <div id="machineStatus" class="info-list">
+          <p class="placeholder">-</p>
+        </div>
       </article>
     </section>
 
@@ -83,15 +89,12 @@
           </div>
           <button id="setColorBtn" class="btn">Set color</button>
         </div>
-        <div class="form-row">
-          <label for="lightingMode">Lighting mode</label>
-          <input id="lightingMode" type="number" min="0" max="10" placeholder="0..10" />
-          <button id="setLightingBtn" class="btn">Set lighting</button>
+        <div class="mode-block">
+          <label>Lighting effects for selected locker</label>
+          <div id="lightingModeButtons" class="lighting-mode-list"></div>
         </div>
         <div class="command-row">
           <button id="openLockerBtn" class="btn btn-primary">Open locker</button>
-          <button id="checkClosedBtn" class="btn">Check closed</button>
-          <button id="toggleSoldBtn" class="btn">Toggle sold</button>
         </div>
       </article>
 
@@ -102,22 +105,15 @@
           <input id="setTemp" type="number" step="0.1" placeholder="e.g. 7.5" />
           <button id="setTempBtn" class="btn">Set temperature</button>
         </div>
-        <div class="form-row">
-          <label for="fanMode">Set fans</label>
-          <input id="fanMode" type="number" min="0" max="255" placeholder="0..255" />
-          <button id="setFansBtn" class="btn">Set fans</button>
+        <div class="mode-block">
+          <label>Set fans</label>
+          <div id="fanButtons" class="fan-button-row"></div>
         </div>
-        <div class="form-row">
-          <label for="opMode">Set operation mode</label>
-          <select id="opMode">
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
-          <button id="setOpModeBtn" class="btn">Set operation mode</button>
+        <div class="mode-block">
+          <label>Set operation mode</label>
+          <button id="toggleOpModeBtn" class="btn state-toggle off" type="button">Operation mode: OFF</button>
         </div>
         <div class="command-row">
-          <button id="refreshStatusBtn" class="btn">Refresh status</button>
-          <button id="clearErrorBtn" class="btn">Clear error</button>
           <button id="rebootRpiBtn" class="btn">Reboot RPI</button>
           <button id="rebootStmBtn" class="btn">Reboot STM32</button>
         </div>
@@ -127,17 +123,16 @@
     <section class="grid grid-2">
       <article class="card">
         <h2>Admin Statistics</h2>
-        <pre id="adminStats" class="mono">Only shown for admin users.</pre>
+        <div id="adminStats" class="info-list">
+          <p class="placeholder">Only shown for admin users.</p>
+        </div>
       </article>
       <article class="card">
         <h2>Recent Activity</h2>
-        <pre id="activityLogs" class="mono">-</pre>
+        <div id="activityLogs" class="activity-list">
+          <p class="placeholder">-</p>
+        </div>
       </article>
-    </section>
-
-    <section class="card">
-      <h2>Supported Commands</h2>
-      <ul id="commandList" class="command-list"></ul>
     </section>
   </main>
 

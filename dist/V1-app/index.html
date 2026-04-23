@@ -15,7 +15,7 @@
       </div>
       <div class="api-config">
         <label for="apiBaseUrl">API URL</label>
-        <input id="apiBaseUrl" type="text" value="" placeholder="https://<api-id>.execute-api.eu-central-1.amazonaws.com" />
+        <input id="apiBaseUrl" type="text" inputmode="url" autocomplete="off" value="" placeholder="https://<api-id>.execute-api.eu-central-1.amazonaws.com" />
       </div>
     </header>
 
@@ -77,15 +77,15 @@
         <p id="selectedLockerText" class="subtle">No locker selected</p>
         <div class="form-row">
           <label for="lockerPrice">Price</label>
-          <input id="lockerPrice" type="number" step="0.01" min="0" placeholder="e.g. 12.50" />
+          <input id="lockerPrice" type="number" inputmode="decimal" step="0.01" min="0" placeholder="e.g. 12.50" />
           <button id="setPriceBtn" class="btn">Set price</button>
         </div>
         <div class="form-row">
           <label>Color RGB</label>
           <div class="rgb-row">
-            <input id="colorR" type="number" min="0" max="255" placeholder="R" />
-            <input id="colorG" type="number" min="0" max="255" placeholder="G" />
-            <input id="colorB" type="number" min="0" max="255" placeholder="B" />
+            <input id="colorR" type="number" inputmode="numeric" min="0" max="255" placeholder="R" />
+            <input id="colorG" type="number" inputmode="numeric" min="0" max="255" placeholder="G" />
+            <input id="colorB" type="number" inputmode="numeric" min="0" max="255" placeholder="B" />
           </div>
           <button id="setColorBtn" class="btn">Set color</button>
         </div>
@@ -102,7 +102,7 @@
         <h2>Machine Commands</h2>
         <div class="form-row">
           <label for="setTemp">Set temperature (°C)</label>
-          <input id="setTemp" type="number" step="0.1" placeholder="e.g. 7.5" />
+          <input id="setTemp" type="number" inputmode="decimal" step="0.1" placeholder="e.g. 7.5" />
           <button id="setTempBtn" class="btn">Set temperature</button>
         </div>
         <div class="mode-block">

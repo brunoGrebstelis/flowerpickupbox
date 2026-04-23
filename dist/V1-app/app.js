@@ -30,11 +30,11 @@ const LIGHTING_MODES = [
 ];
 
 const FAN_BUTTONS = [
-  { key: "fan1", label: "Fan1", bit: 128 },
-  { key: "fan2", label: "Fan2", bit: 64 },
-  { key: "fan3", label: "Fan3", bit: 32 },
+  { key: "fan1", label: "Fan1", bit: 1 },
+  { key: "fan2", label: "Fan2", bit: 4 },
+  { key: "fan3", label: "Fan3", bit: 8 },
   { key: "fan4", label: "Fan4", bit: 16 },
-  { key: "fan5", label: "Fan5", bit: 8 },
+  { key: "fan5", label: "Fan5", bit: 32 },
 ];
 
 function resolveInitialApiBaseUrl() {
@@ -196,14 +196,20 @@ function bitmaskToFanStates(fanMode) {
     };
   }
 
-  return {
-    fan1: Boolean(safeValue & 128),
-    fan2: Boolean(safeValue & 64),
-    fan3: Boolean(safeValue & 32),
-    fan4: Boolean(safeValue & 16),
-    fan5: Boolean(safeValue & 8),
+  const manualStates = {
+    fan1: false,
+    fan2: false,
+    fan3: false,
+    fan4: false,
+    fan5: false,
     auto: false,
   };
+
+  FAN_BUTTONS.forEach((fan) => {
+    manualStates[fan.key] = Boolean(safeValue & fan.bit);
+  });
+
+  return manualStates;
 }
 
 function fanStatesToBitmask(fanStates) {
@@ -516,6 +522,7 @@ function resetDashboard() {
   state.selectedLockerId = null;
   state.machineStatus = null;
   setSelectedLockerText();
+  syncSelectedLockerFormFields();
   syncControlModesFromStatusAndLocker();
   syncBusyUi();
 }
@@ -527,6 +534,22 @@ function setSelectedLockerText() {
     return;
   }
   el.selectedLockerText.textContent = `Locker ${locker.locker_number} selected (id=${locker.locker_id})`;
+}
+
+function syncSelectedLockerFormFields() {
+  const locker = getSelectedLocker();
+  if (!locker) {
+    el.lockerPrice.value = "";
+    el.colorR.value = "";
+    el.colorG.value = "";
+    el.colorB.value = "";
+    return;
+  }
+
+  el.lockerPrice.value = locker.price ?? "";
+  el.colorR.value = locker.color_r ?? "";
+  el.colorG.value = locker.color_g ?? "";
+  el.colorB.value = locker.color_b ?? "";
 }
 
 function lockerColorClass(locker) {
@@ -545,6 +568,10 @@ function renderLockers() {
   el.lockerGrid.innerHTML = "";
   if (!state.lockers.length) {
     el.lockerGrid.innerHTML = "<p class='subtle'>No lockers found for this machine.</p>";
+    state.selectedLockerId = null;
+    setSelectedLockerText();
+    syncSelectedLockerFormFields();
+    syncBusyUi();
     return;
   }
 
@@ -555,10 +582,7 @@ function renderLockers() {
     button.addEventListener("click", () => {
       state.selectedLockerId = locker.locker_id;
       setSelectedLockerText();
-      el.lockerPrice.value = locker.price ?? "";
-      el.colorR.value = locker.color_r ?? "";
-      el.colorG.value = locker.color_g ?? "";
-      el.colorB.value = locker.color_b ?? "";
+      syncSelectedLockerFormFields();
       state.lightingModeValue = Number.isInteger(Number(locker.lighting_mode)) ? Number(locker.lighting_mode) : 0;
       renderLockers();
       renderLightingModes();
@@ -691,6 +715,7 @@ async function sendCommandAndRefresh(commandId, params = {}, lockerId = null, st
     }
 
     if (lastError) {
+      await loadDashboard({ quiet: true }).catch(() => {});
       throw lastError;
     }
 
@@ -813,6 +838,10 @@ async function loadDashboard(options = {}) {
   state.machineStatus = status;
   state.lockers = lockers;
 
+  if (!state.lockers.some((locker) => locker.locker_id === state.selectedLockerId)) {
+    state.selectedLockerId = state.lockers.length ? state.lockers[0].locker_id : null;
+  }
+
   const userInfo = {
     user_id: user.user_id,
     name: user.name,
@@ -869,6 +898,8 @@ async function loadDashboard(options = {}) {
   renderActivityLogs(activityLogs || []);
   renderLockers();
   syncControlModesFromStatusAndLocker();
+  setSelectedLockerText();
+  syncSelectedLockerFormFields();
 
   if (state.selectedRole === "admin") {
     await loadAdminStats(machineId);
@@ -1029,6 +1060,7 @@ function startAutoRefreshLoop() {
 
 async function restoreSelectionAndAutoloadDashboard() {
   const storedUserIdRaw = localStorage.getItem(STORAGE_KEYS.selectedUserId);
+  const storedMachineIdRaw = localStorage.getItem(STORAGE_KEYS.selectedMachineId);
   if (!storedUserIdRaw) return;
 
   const storedUserId = Number(storedUserIdRaw);
@@ -1039,7 +1071,6 @@ async function restoreSelectionAndAutoloadDashboard() {
   el.userSelect.value = String(storedUserId);
   await onUserSelected();
 
-  const storedMachineIdRaw = localStorage.getItem(STORAGE_KEYS.selectedMachineId);
   if (!storedMachineIdRaw) return;
 
   const storedMachineId = Number(storedMachineIdRaw);

@@ -17,6 +17,13 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
@@ -28,6 +35,7 @@ body {
 .app-shell {
   max-width: 1280px;
   margin: 0 auto;
+  width: 100%;
   padding: 18px;
   display: grid;
   gap: 14px;
@@ -79,6 +87,10 @@ body {
   align-items: end;
 }
 
+.selector-card .actions {
+  min-width: 0;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -102,6 +114,7 @@ button {
 input,
 select {
   width: 100%;
+  max-width: 100%;
   background: #fff;
   color: var(--text);
 }
@@ -404,6 +417,10 @@ h2 {
   margin-bottom: 8px;
 }
 
+.form-row > * {
+  min-width: 0;
+}
+
 .mode-block {
   display: grid;
   gap: 8px;
@@ -509,6 +526,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  min-width: 0;
 }
 
 .subtle {
@@ -562,8 +580,10 @@ h2 {
 @media (max-width: 768px) {
   .app-shell {
     max-width: 100%;
-    padding: 16px;
+    padding: 14px;
     gap: 14px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .card,
@@ -573,7 +593,7 @@ h2 {
   }
 
   .top-card h1 {
-    font-size: 28px;
+    font-size: clamp(22px, 6vw, 28px);
     line-height: 1.15;
     text-align: center;
   }
@@ -592,7 +612,7 @@ h2 {
   }
 
   h2 {
-    font-size: 24px;
+    font-size: clamp(20px, 5vw, 24px);
     margin-bottom: 14px;
   }
 
@@ -603,15 +623,17 @@ h2 {
   .state-btn,
   .state-toggle,
   .lighting-mode-btn {
-    font-size: 19px;
-    min-height: 58px;
-    padding: 14px 16px;
+    font-size: clamp(16px, 4.2vw, 19px);
+    min-height: 54px;
+    padding: 12px 12px;
     border-radius: 12px;
+    width: 100%;
   }
 
   .info-list,
   .table-scroll {
     padding: 12px;
+    width: 100%;
   }
 
   .fan-button-row {
@@ -627,24 +649,42 @@ h2 {
   .table-scroll-activity,
   .table-scroll-purchases {
     max-height: 360px;
+    overflow-x: hidden;
   }
 
   .data-table {
     min-width: 100%;
+    table-layout: fixed;
   }
 
   .data-table th,
   .data-table td {
-    font-size: 15px;
-    padding: 12px 10px;
+    font-size: clamp(13px, 3.4vw, 15px);
+    padding: 10px 8px;
+    word-break: break-word;
   }
 
   .locker-btn {
     min-height: 108px;
-    font-size: 20px;
+    font-size: clamp(17px, 4.3vw, 20px);
   }
 
   .locker-btn small {
-    font-size: 15px;
+    font-size: clamp(12px, 3.3vw, 15px);
+  }
+
+  .selector-card,
+  .grid,
+  .card,
+  .top-card,
+  .mode-block,
+  .command-row,
+  .form-row,
+  .rgb-row,
+  .fan-button-row,
+  .headlight-button-row,
+  .lighting-mode-list {
+    width: 100%;
+    max-width: 100%;
   }
 }

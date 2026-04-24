@@ -475,6 +475,15 @@ h2 {
   border-color: var(--pending-blue-border);
 }
 
+.state-btn.failed,
+.state-toggle.failed,
+.btn.failed,
+input.failed {
+  background: #ffe8ea;
+  color: #9e1524;
+  border-color: #e56f7d;
+}
+
 .lighting-mode-btn.pending {
   background: var(--pending-blue-bg);
   color: var(--pending-blue-text);

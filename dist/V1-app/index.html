@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Flower Pickup Box Control</title>
+  <link rel="icon" type="image/png" href="./icon.png" />
+  <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -111,17 +113,18 @@
         </div>
       </article>
       <article class="card">
-        <h2>Recent Activity</h2>
-        <div class="table-scroll table-scroll-activity">
+        <h2>Purchases</h2>
+        <p class="subtle">Shows latest 5 in view. Scroll down to see older purchases.</p>
+        <div class="table-scroll table-scroll-purchases">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Who?</th>
-                <th>When?</th>
-                <th>Action</th>
+                <th>Locker</th>
+                <th>Price</th>
+                <th>Time + date</th>
               </tr>
             </thead>
-            <tbody id="activityLogs">
+            <tbody id="purchaseLogs">
               <tr>
                 <td colspan="3" class="table-empty">-</td>
               </tr>
@@ -129,6 +132,26 @@
           </table>
         </div>
       </article>
+    </section>
+
+    <section class="card">
+      <h2>Recent Activity</h2>
+      <div class="table-scroll table-scroll-activity">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Who?</th>
+              <th>When?</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="activityLogs">
+            <tr>
+              <td colspan="3" class="table-empty">-</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="grid grid-3">
@@ -150,27 +173,6 @@
           <p class="placeholder">-</p>
         </div>
       </article>
-    </section>
-
-    <section class="card">
-      <h2>Purchases</h2>
-      <p class="subtle">Shows latest 5 in view. Scroll down to see older purchases.</p>
-      <div class="table-scroll table-scroll-purchases">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Locker</th>
-              <th>Price</th>
-              <th>Time + date</th>
-            </tr>
-          </thead>
-          <tbody id="purchaseLogs">
-            <tr>
-              <td colspan="3" class="table-empty">-</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </section>
   </main>
 

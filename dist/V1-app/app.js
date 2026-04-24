@@ -80,8 +80,10 @@ const state = {
   headLightsValue: 0,
   opModeValue: false,
   dbRefreshDebounceTimerId: null,
-  dbRefreshDebounceMs: 370,
+  dbRefreshDebounceMs: 100,
   pendingControlKeys: new Set(),
+  failedControlKeys: new Set(),
+  pendingVerifications: [],
   pendingLockerPriceById: new Map(),
   fanStates: {
     fan1: false,
@@ -202,8 +204,32 @@ function hasPendingControl(key) {
   return state.pendingControlKeys.has(key);
 }
 
+function hasFailedControl(key) {
+  return state.failedControlKeys.has(key);
+}
+
+function setFailedControls(keys, failed) {
+  const list = Array.isArray(keys) ? keys : [keys];
+  list.forEach((key) => {
+    if (!key) return;
+    if (failed) {
+      state.failedControlKeys.add(key);
+    } else {
+      state.failedControlKeys.delete(key);
+    }
+  });
+  syncPendingControlUi();
+}
+
+function clearFailedControls() {
+  if (state.failedControlKeys.size === 0) return;
+  state.failedControlKeys.clear();
+  syncPendingControlUi();
+}
+
 function syncPendingControlUi() {
   const pendingByButton = [
+    [el.openLockerBtn, "openLocker"],
     [el.setPriceBtn, "setPrice"],
     [el.setColorBtn, "setColor"],
     [el.setTempBtn, "setTemp"],
@@ -212,7 +238,12 @@ function syncPendingControlUi() {
   pendingByButton.forEach(([button, key]) => {
     if (!button) return;
     button.classList.toggle("pending", hasPendingControl(key));
+    button.classList.toggle("failed", hasFailedControl(key));
   });
+
+  if (el.lockerPrice) {
+    el.lockerPrice.classList.toggle("failed", hasFailedControl("setPrice"));
+  }
 
   renderFanButtons();
   renderHeadlightButtons();
@@ -237,6 +268,129 @@ function clearPendingControls() {
   if (state.pendingControlKeys.size === 0) return;
   state.pendingControlKeys.clear();
   syncPendingControlUi();
+}
+
+function computeVerificationActual(commandId, lockerId = null) {
+  const selectedLocker = lockerId != null
+    ? state.lockers.find((locker) => Number(locker.locker_id) === Number(lockerId)) || null
+    : null;
+
+  switch (commandId) {
+    case COMMAND_IDS.OPEN_LOCKER:
+      return selectedLocker ? coerceBoolean(selectedLocker.is_open) : null;
+    case COMMAND_IDS.SET_LOCKER_PRICE:
+      return selectedLocker ? Number(selectedLocker.price) : null;
+    case COMMAND_IDS.SET_LOCKER_COLOR:
+      return selectedLocker
+        ? {
+          color_r: Number(selectedLocker.color_r),
+          color_g: Number(selectedLocker.color_g),
+          color_b: Number(selectedLocker.color_b),
+        }
+        : null;
+    case COMMAND_IDS.SET_LIGHTING_MODE:
+      return selectedLocker ? Number(selectedLocker.lighting_mode) : null;
+    case COMMAND_IDS.SET_TEMPERATURE:
+      return state.machineStatus ? Number(state.machineStatus.set_temperature) : null;
+    case COMMAND_IDS.SET_FANS:
+      return state.machineStatus ? Number(state.machineStatus.fan_mode) : null;
+    case COMMAND_IDS.SET_OPERATION_MODE:
+      return state.machineStatus ? coerceBoolean(state.machineStatus.op_mode) : null;
+    case COMMAND_IDS.SET_HEAD_LIGHTS:
+      return state.machineStatus ? Number(state.machineStatus.head_lights) : null;
+    default:
+      return null;
+  }
+}
+
+function verificationMatchesExpected(actual, expected) {
+  if (expected === undefined || expected === null) {
+    return true;
+  }
+
+  if (expected && typeof expected === "object" && !Array.isArray(expected)) {
+    if (!actual || typeof actual !== "object") return false;
+    return Object.keys(expected).every((key) => verificationMatchesExpected(actual[key], expected[key]));
+  }
+
+  if (typeof expected === "boolean") {
+    return coerceBoolean(actual) === expected;
+  }
+
+  if (typeof expected === "number") {
+    const actualNumber = Number(actual);
+    if (!Number.isFinite(actualNumber)) return false;
+    return Math.abs(actualNumber - expected) < 0.000001;
+  }
+
+  return String(actual) === String(expected);
+}
+
+function queueVerification(item) {
+  state.pendingVerifications.push(item);
+}
+
+async function processPendingVerifications() {
+  if (!state.pendingVerifications.length) return;
+
+  const queue = [...state.pendingVerifications];
+  state.pendingVerifications = [];
+
+  for (const item of queue) {
+    const { commandId, params = {}, lockerId = null, statusLabel = "Command", pendingKeys = [], attempts = 1 } = item;
+    const keys = Array.isArray(pendingKeys) ? pendingKeys : [pendingKeys];
+    const expected = item.expected !== undefined ? item.expected : null;
+    const actual = computeVerificationActual(commandId, lockerId);
+    const success = verificationMatchesExpected(actual, expected);
+
+    if (success) {
+      if (commandId === COMMAND_IDS.SET_LOCKER_PRICE && lockerId != null) {
+        state.pendingLockerPriceById.delete(lockerId);
+      }
+      setPendingControls(keys, false);
+      setFailedControls(keys, false);
+      continue;
+    }
+
+    if (attempts >= 2) {
+      setFailedControls(keys, true);
+      setPendingControls(keys, false);
+      const label = keys.includes("setPrice") ? "Price" : statusLabel;
+      setStatus(`${label} not confirmed after 2 tries.`, false);
+      continue;
+    }
+
+    setStatus(`${statusLabel} mismatch detected. Retrying...`, true);
+
+    let retryError = null;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        await publishMachineCommand(commandId, params, lockerId);
+        retryError = null;
+        break;
+      } catch (error) {
+        retryError = error;
+        if (attempt < 2 && isRetryableCommandError(error)) {
+          await sleep(250);
+          continue;
+        }
+        break;
+      }
+    }
+
+    if (retryError) {
+      setFailedControls(keys, true);
+      setPendingControls(keys, false);
+      setStatus(`${statusLabel} retry failed: ${retryError.message}`, false);
+      continue;
+    }
+
+    queueVerification({
+      ...item,
+      attempts: attempts + 1,
+    });
+    scheduleDebouncedDashboardRefresh();
+  }
 }
 
 function scheduleDebouncedDashboardRefresh() {
@@ -376,6 +530,128 @@ function parseActivityData(raw) {
   }
 }
 
+function getUserDisplayName(userId) {
+  if (!Number.isInteger(Number(userId))) return "System";
+  const numericUserId = Number(userId);
+  const user = state.users.find((item) => Number(item.user_id) === numericUserId);
+  if (!user) return `User #${numericUserId}`;
+
+  const parts = [user.name, user.surname]
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(" ") : `User #${numericUserId}`;
+}
+
+function formatCommandValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? "ON" : "OFF";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "-";
+  return String(value);
+}
+
+function commandLabelShort(commandKey, commandId = null) {
+  const key = String(commandKey || "").trim();
+  const map = {
+    open_locker: "Open",
+    check_locker_closed: "Close chk",
+    set_locker_price: "Price",
+    set_locker_color: "Color",
+    set_lighting_mode: "Light mode",
+    set_temperature: "Temp",
+    set_fans: "Fans",
+    set_operation_mode: "Op mode",
+    refresh_status: "Refresh",
+    clear_error: "Clr err",
+    reboot_rpi: "Reboot RPI",
+    reboot_stm32: "Reboot STM32",
+    set_head_lights: "Head lights",
+  };
+
+  if (key && map[key]) return map[key];
+  if (key) return humanizeKey(key);
+  if (Number.isInteger(Number(commandId)) && Number(commandId) > 0) return `Cmd #${Number(commandId)}`;
+  return "Action";
+}
+
+function buildCompactActivityText(log, activityData) {
+  const commandKey = String(activityData.command_key || "").trim();
+  const commandId = Number(log.command_id || activityData.command_id || 0);
+  const label = commandLabelShort(commandKey, commandId);
+
+  const phase = String(activityData.phase || "").trim().toLowerCase();
+  const result = String(activityData.result || "").trim().toLowerCase();
+  const lockerFromData = Number(activityData.locker_id);
+  const lockerId = Number.isInteger(lockerFromData)
+    ? lockerFromData
+    : (Number.isInteger(Number(log.locker_id)) ? Number(log.locker_id) : null);
+  const lockerPart = lockerId !== null ? ` L${lockerId}` : "";
+
+  const expected = activityData.expected_change && typeof activityData.expected_change === "object"
+    ? activityData.expected_change
+    : null;
+  const before = expected ? expected.before : null;
+  const after = expected ? expected.expected : null;
+  const field = expected ? expected.field : null;
+
+  if (commandKey === "set_locker_price" && field === "price") {
+    const fromValue = formatCommandValue(before);
+    const toValue = formatCommandValue(after);
+    return `Price${lockerPart}: ${fromValue}→${toValue}`;
+  }
+
+  if (commandKey === "set_temperature" && field === "set_temperature") {
+    return `Temp: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+  }
+
+  if (commandKey === "set_fans" && field === "fan_mode") {
+    return `Fans: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+  }
+
+  if (commandKey === "set_operation_mode" && field === "op_mode") {
+    return `Op mode: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+  }
+
+  if (commandKey === "set_head_lights" && field === "head_lights") {
+    return `Head lights: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+  }
+
+  if (commandKey === "set_lighting_mode" && field === "lighting_mode") {
+    return `Light mode${lockerPart}: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+  }
+
+  if (commandKey === "set_locker_color" && field === "color_rgb" && before && after) {
+    const fromRgb = `${formatCommandValue(before.color_r)},${formatCommandValue(before.color_g)},${formatCommandValue(before.color_b)}`;
+    const toRgb = `${formatCommandValue(after.color_r)},${formatCommandValue(after.color_g)},${formatCommandValue(after.color_b)}`;
+    return `Color${lockerPart}: ${fromRgb}→${toRgb}`;
+  }
+
+  if (commandKey === "open_locker") {
+    return `Open${lockerPart}`;
+  }
+
+  if (commandKey === "check_locker_closed") {
+    return `Close check${lockerPart}`;
+  }
+
+  if (phase === "publish_failed" || result === "failed" || result === "error") {
+    return `${label}${lockerPart}: failed`;
+  }
+
+  if (phase === "pending_publish") {
+    return `${label}${lockerPart}: pending`;
+  }
+
+  if (phase === "sent") {
+    return `${label}${lockerPart}: sent`;
+  }
+
+  if (phase === "ack" && result === "success") {
+    return `${label}${lockerPart}: done`;
+  }
+
+  return buildActivityText(log, activityData);
+}
+
 function buildActivityText(log, activityData) {
   if (activityData.text) {
     return String(activityData.text);
@@ -418,13 +694,14 @@ function renderActivityLogs(logs) {
     const row = document.createElement("tr");
 
     const whoCell = document.createElement("td");
-    whoCell.textContent = log.user_id ? `User #${log.user_id}` : "System";
+    const userId = activityData.user_id ?? log.user_id;
+    whoCell.textContent = getUserDisplayName(userId);
 
     const whenCell = document.createElement("td");
     whenCell.textContent = toLocalTime(log.created_at || activityData.reported_at || activityData.accepted_at);
 
     const actionCell = document.createElement("td");
-    actionCell.textContent = buildActivityText(log, activityData);
+    actionCell.textContent = buildCompactActivityText(log, activityData);
 
     row.appendChild(whoCell);
     row.appendChild(whenCell);
@@ -477,6 +754,7 @@ function applyOpModeButtonState(opModeValue) {
   el.toggleOpModeBtn.classList.remove("on", "off");
   el.toggleOpModeBtn.classList.add(state.opModeValue ? "on" : "off");
   el.toggleOpModeBtn.classList.toggle("pending", hasPendingControl("opMode"));
+  el.toggleOpModeBtn.classList.toggle("failed", hasFailedControl("opMode"));
   el.toggleOpModeBtn.textContent = `Operation mode: ${state.opModeValue ? "ON" : "OFF"}`;
 }
 
@@ -484,11 +762,12 @@ function renderLightingModes() {
   if (!el.lightingModeButtons) return;
   el.lightingModeButtons.innerHTML = "";
   const pending = hasPendingControl("lightingMode");
+  const failed = hasFailedControl("lightingMode");
 
   LIGHTING_MODES.forEach((mode) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `lighting-mode-btn${state.lightingModeValue === mode.value ? " active" : ""}${pending ? " pending" : ""}`;
+    button.className = `lighting-mode-btn${state.lightingModeValue === mode.value ? " active" : ""}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
     button.textContent = mode.label;
     button.addEventListener("click", () => {
       handleSetLightingMode(mode.value).catch((e) => setStatus(`Set lighting failed: ${e.message}`));
@@ -503,11 +782,12 @@ function renderFanButtons() {
   if (!el.fanButtons) return;
   el.fanButtons.innerHTML = "";
   const pending = hasPendingControl("fan");
+  const failed = hasFailedControl("fan");
 
   FAN_BUTTONS.forEach((fan) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `state-btn ${state.fanStates[fan.key] ? "on" : "off"}${pending ? " pending" : ""}`;
+    button.className = `state-btn ${state.fanStates[fan.key] ? "on" : "off"}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
     button.textContent = fan.label;
     button.addEventListener("click", () => {
       handleToggleFan(fan.key).catch((e) => setStatus(`Set fans failed: ${e.message}`));
@@ -517,7 +797,7 @@ function renderFanButtons() {
 
   const autoButton = document.createElement("button");
   autoButton.type = "button";
-  autoButton.className = `state-btn fan-auto ${state.fanStates.auto ? "on" : "off"}${pending ? " pending" : ""}`;
+  autoButton.className = `state-btn fan-auto ${state.fanStates.auto ? "on" : "off"}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
   autoButton.textContent = "Auto";
   autoButton.addEventListener("click", () => {
     handleSetFanAuto().catch((e) => setStatus(`Set fans failed: ${e.message}`));
@@ -531,11 +811,12 @@ function renderHeadlightButtons() {
   if (!el.headlightButtons) return;
   el.headlightButtons.innerHTML = "";
   const pending = hasPendingControl("headLights");
+  const failed = hasFailedControl("headLights");
 
   HEADLIGHT_MODES.forEach((mode) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `state-btn ${state.headLightsValue === mode.value ? "on" : "off"}${pending ? " pending" : ""}`;
+    button.className = `state-btn ${state.headLightsValue === mode.value ? "on" : "off"}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
     button.textContent = mode.label;
     button.addEventListener("click", () => {
       handleSetHeadLights(mode.value).catch((e) => setStatus(`Set head lights failed: ${e.message}`));
@@ -713,12 +994,14 @@ function scrollLockerCommandsIntoViewOnMobile() {
 }
 
 function lockerColorClass(locker) {
+  if (coerceBoolean(locker.is_open) && !coerceBoolean(locker.sold)) return "green";
   if (coerceBoolean(locker.is_open)) return "orange";
   if (coerceBoolean(locker.sold)) return "red";
   return "green";
 }
 
 function lockerStateLabel(locker) {
+  if (coerceBoolean(locker.is_open) && !coerceBoolean(locker.sold)) return "FREE";
   if (coerceBoolean(locker.is_open)) return "OPEN";
   if (coerceBoolean(locker.sold)) return "SOLD";
   return "FREE";
@@ -906,7 +1189,8 @@ async function sendCommandAndDebouncedRefresh(
   params = {},
   lockerId = null,
   statusLabel = "Command",
-  pendingKeys = []
+  pendingKeys = [],
+  options = {}
 ) {
   if (state.activeCommandCount > 0) {
     setStatus("Please wait for current command to finish.", true);
@@ -915,6 +1199,9 @@ async function sendCommandAndDebouncedRefresh(
 
   const keys = Array.isArray(pendingKeys) ? pendingKeys : [pendingKeys];
   setPendingControls(keys, true);
+  if (options.clearFailed !== false) {
+    setFailedControls(keys, false);
+  }
 
   let response = null;
   let lastError = null;
@@ -938,6 +1225,18 @@ async function sendCommandAndDebouncedRefresh(
     setPendingControls(keys, false);
     await loadDashboard({ quiet: true }).catch(() => {});
     throw lastError;
+  }
+
+  if (options.verifyAfterRefresh) {
+    queueVerification({
+      commandId,
+      params,
+      lockerId,
+      statusLabel,
+      pendingKeys: keys,
+      expected: options.expected,
+      attempts: options.attempts || 1,
+    });
   }
 
   scheduleDebouncedDashboardRefresh();
@@ -1125,6 +1424,7 @@ async function loadDashboard(options = {}) {
   syncControlModesFromStatusAndLocker();
   setSelectedLockerText();
   syncSelectedLockerFormFields();
+  await processPendingVerifications();
 
   if (state.selectedRole === "admin") {
     await loadAdminStats(machineId);
@@ -1168,7 +1468,17 @@ async function loadAdminStats(machineId) {
 
 async function handleOpenLocker() {
   if (!requireContext({ locker: true })) return;
-  await sendCommandAndRefresh(COMMAND_IDS.OPEN_LOCKER, {}, state.selectedLockerId, "Open locker");
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.OPEN_LOCKER,
+    {},
+    state.selectedLockerId,
+    "Open locker",
+    ["openLocker"],
+    {
+      verifyAfterRefresh: true,
+      expected: true,
+    }
+  );
 }
 
 async function handleSetPrice() {
@@ -1193,7 +1503,11 @@ async function handleSetPrice() {
     { price },
     lockerId,
     "Set locker price",
-    ["setPrice"]
+    ["setPrice"],
+    {
+      verifyAfterRefresh: true,
+      expected: price,
+    }
   );
   } catch (error) {
     state.pendingLockerPriceById.delete(lockerId);
@@ -1216,7 +1530,11 @@ async function handleSetColor() {
     { color_r, color_g, color_b },
     state.selectedLockerId,
     "Set locker color",
-    ["setColor"]
+    ["setColor"],
+    {
+      verifyAfterRefresh: true,
+      expected: { color_r, color_g, color_b },
+    }
   );
 }
 
@@ -1232,7 +1550,11 @@ async function handleSetLightingMode(modeValue) {
     { lighting_mode: modeValue },
     state.selectedLockerId,
     `Set lighting mode ${modeValue}`,
-    ["lightingMode"]
+    ["lightingMode"],
+    {
+      verifyAfterRefresh: true,
+      expected: modeValue,
+    }
   );
 }
 
@@ -1251,7 +1573,11 @@ async function handleToggleFan(fanKey) {
     { fan_mode },
     null,
     "Set fans",
-    ["fan"]
+    ["fan"],
+    {
+      verifyAfterRefresh: true,
+      expected: fan_mode,
+    }
   );
 }
 
@@ -1262,7 +1588,11 @@ async function handleSetFanAuto() {
     { fan_mode: 255 },
     null,
     "Set fans auto",
-    ["fan"]
+    ["fan"],
+    {
+      verifyAfterRefresh: true,
+      expected: 255,
+    }
   );
 }
 
@@ -1274,7 +1604,11 @@ async function handleToggleOperationMode() {
     { op_mode: next },
     null,
     "Set operation mode",
-    ["opMode"]
+    ["opMode"],
+    {
+      verifyAfterRefresh: true,
+      expected: next,
+    }
   );
 }
 
@@ -1290,7 +1624,11 @@ async function handleSetHeadLights(modeValue) {
     { head_lights: modeValue },
     null,
     "Set head lights",
-    ["headLights"]
+    ["headLights"],
+    {
+      verifyAfterRefresh: true,
+      expected: modeValue,
+    }
   );
 }
 
@@ -1306,7 +1644,11 @@ async function handleSetTemperature() {
     { set_temperature },
     null,
     "Set temperature",
-    ["setTemp"]
+    ["setTemp"],
+    {
+      verifyAfterRefresh: true,
+      expected: set_temperature,
+    }
   );
 }
 

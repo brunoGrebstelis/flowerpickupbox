@@ -271,6 +271,58 @@ h2 {
   line-height: 1.35;
 }
 
+.table-scroll {
+  background: #f8f9fc;
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  overflow: auto;
+}
+
+.table-scroll-activity {
+  max-height: 270px;
+}
+
+.table-scroll-purchases {
+  max-height: 320px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 420px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px dashed #dce3ef;
+  font-size: 14px;
+  text-align: left;
+  color: #22314c;
+  vertical-align: top;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eef2fa;
+  color: #2a3f63;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-empty {
+  text-align: center;
+  color: var(--muted);
+}
+
 .legend {
   margin: 0 0 10px;
   font-size: 13px;
@@ -361,6 +413,12 @@ h2 {
   gap: 8px;
 }
 
+.headlight-button-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .state-btn,
 .state-toggle,
 .lighting-mode-btn {
@@ -389,6 +447,20 @@ h2 {
   border-color: #f2b9c3;
 }
 
+.state-btn.pending,
+.state-toggle.pending,
+.btn.pending {
+  background: #eaf8ef;
+  color: #1a7f3a;
+  border-color: #84d39c;
+}
+
+.lighting-mode-btn.pending {
+  background: #eaf8ef;
+  color: #1a7f3a;
+  border-color: #84d39c;
+}
+
 .state-btn.auto {
   background: #eef3ff;
   color: #254b9c;
@@ -399,6 +471,18 @@ h2 {
   background: #dce8ff;
   color: #173978;
   border-color: #7ea0e8;
+}
+
+.state-btn.fan-auto.on {
+  background: #eaf8ef;
+  color: #1a7f3a;
+  border-color: #84d39c;
+}
+
+.state-btn.fan-auto.off {
+  background: #feeff1;
+  color: #b7202e;
+  border-color: #f2b9c3;
 }
 
 .lighting-mode-list {
@@ -462,6 +546,10 @@ h2 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .headlight-button-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .info-item {
     grid-template-columns: 1fr;
     gap: 4px;
@@ -492,6 +580,25 @@ h2 {
 
   .fan-button-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .headlight-button-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .table-scroll-activity,
+  .table-scroll-purchases {
+    max-height: 320px;
+  }
+
+  .data-table {
+    min-width: 100%;
+  }
+
+  .data-table th,
+  .data-table td {
+    font-size: 13px;
+    padding: 9px 10px;
   }
 
   .locker-btn {

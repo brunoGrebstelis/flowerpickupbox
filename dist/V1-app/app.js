@@ -19,6 +19,7 @@ const COMMAND_IDS = {
   CLEAR_ERROR: 10,
   REBOOT_RPI: 11,
   REBOOT_STM32: 12,
+  SET_HEAD_LIGHTS: 13,
 };
 
 const LIGHTING_MODES = [
@@ -35,6 +36,12 @@ const FAN_BUTTONS = [
   { key: "fan3", label: "Fan3", bit: 8 },
   { key: "fan4", label: "Fan4", bit: 16 },
   { key: "fan5", label: "Fan5", bit: 32 },
+];
+
+const HEADLIGHT_MODES = [
+  { value: 1, label: "On" },
+  { value: 0, label: "Off" },
+  { value: 2, label: "Auto" },
 ];
 
 function resolveInitialApiBaseUrl() {
@@ -70,7 +77,11 @@ const state = {
   autoRefreshIntervalMs: 25000,
   lightingModeValue: 0,
   fanModeValue: 255,
+  headLightsValue: 0,
   opModeValue: false,
+  dbRefreshDebounceTimerId: null,
+  dbRefreshDebounceMs: 370,
+  pendingControlKeys: new Set(),
   fanStates: {
     fan1: false,
     fan2: false,
@@ -104,11 +115,13 @@ const el = {
   setTemp: document.getElementById("setTemp"),
   setTempBtn: document.getElementById("setTempBtn"),
   fanButtons: document.getElementById("fanButtons"),
+  headlightButtons: document.getElementById("headlightButtons"),
   toggleOpModeBtn: document.getElementById("toggleOpModeBtn"),
   rebootRpiBtn: document.getElementById("rebootRpiBtn"),
   rebootStmBtn: document.getElementById("rebootStmBtn"),
   adminStats: document.getElementById("adminStats"),
   activityLogs: document.getElementById("activityLogs"),
+  purchaseLogs: document.getElementById("purchaseLogs"),
 };
 
 function setStatus(message, ok = false) {
@@ -153,6 +166,7 @@ function syncBusyUi() {
     ...(el.lockerGrid ? Array.from(el.lockerGrid.querySelectorAll("button")) : []),
     ...(el.lightingModeButtons ? Array.from(el.lightingModeButtons.querySelectorAll("button")) : []),
     ...(el.fanButtons ? Array.from(el.fanButtons.querySelectorAll("button")) : []),
+    ...(el.headlightButtons ? Array.from(el.headlightButtons.querySelectorAll("button")) : []),
   ];
 
   dynamicButtons.forEach((button) => {
@@ -181,6 +195,64 @@ function toLocalTime(value) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hasPendingControl(key) {
+  return state.pendingControlKeys.has(key);
+}
+
+function syncPendingControlUi() {
+  const pendingByButton = [
+    [el.setPriceBtn, "setPrice"],
+    [el.setColorBtn, "setColor"],
+    [el.setTempBtn, "setTemp"],
+  ];
+
+  pendingByButton.forEach(([button, key]) => {
+    if (!button) return;
+    button.classList.toggle("pending", hasPendingControl(key));
+  });
+
+  renderFanButtons();
+  renderHeadlightButtons();
+  renderLightingModes();
+  applyOpModeButtonState(state.opModeValue);
+}
+
+function setPendingControls(keys, pending) {
+  const list = Array.isArray(keys) ? keys : [keys];
+  list.forEach((key) => {
+    if (!key) return;
+    if (pending) {
+      state.pendingControlKeys.add(key);
+    } else {
+      state.pendingControlKeys.delete(key);
+    }
+  });
+  syncPendingControlUi();
+}
+
+function clearPendingControls() {
+  if (state.pendingControlKeys.size === 0) return;
+  state.pendingControlKeys.clear();
+  syncPendingControlUi();
+}
+
+function scheduleDebouncedDashboardRefresh() {
+  if (state.dbRefreshDebounceTimerId) {
+    window.clearTimeout(state.dbRefreshDebounceTimerId);
+  }
+
+  state.dbRefreshDebounceTimerId = window.setTimeout(async () => {
+    state.dbRefreshDebounceTimerId = null;
+    try {
+      await loadDashboard({ quiet: true });
+    } catch (error) {
+      setStatus(`Dashboard refresh failed: ${error.message}`);
+    } finally {
+      clearPendingControls();
+    }
+  }, state.dbRefreshDebounceMs);
 }
 
 function bitmaskToFanStates(fanMode) {
@@ -326,43 +398,74 @@ function buildActivityText(log, activityData) {
 }
 
 function renderActivityLogs(logs) {
+  if (!el.activityLogs) return;
   el.activityLogs.innerHTML = "";
 
   if (!logs || !logs.length) {
-    const p = document.createElement("p");
-    p.className = "placeholder";
-    p.textContent = "No activity logs found.";
-    el.activityLogs.appendChild(p);
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    cell.className = "table-empty";
+    cell.textContent = "No activity logs found.";
+    row.appendChild(cell);
+    el.activityLogs.appendChild(row);
     return;
   }
 
   logs.forEach((log) => {
     const activityData = parseActivityData(log.activity_data);
-    const item = document.createElement("div");
-    item.className = "activity-item";
+    const row = document.createElement("tr");
 
-    const top = document.createElement("div");
-    top.className = "activity-top";
+    const whoCell = document.createElement("td");
+    whoCell.textContent = log.user_id ? `User #${log.user_id}` : "System";
 
-    const time = document.createElement("span");
-    time.className = "activity-time";
-    time.textContent = toLocalTime(log.created_at || activityData.reported_at || activityData.accepted_at);
+    const whenCell = document.createElement("td");
+    whenCell.textContent = toLocalTime(log.created_at || activityData.reported_at || activityData.accepted_at);
 
-    const result = document.createElement("span");
-    const success = coerceBoolean(log.successful);
-    result.className = `activity-result ${success ? "ok" : "fail"}`;
-    result.textContent = success ? "SUCCESS" : "FAILED";
+    const actionCell = document.createElement("td");
+    actionCell.textContent = buildActivityText(log, activityData);
 
-    top.appendChild(time);
-    top.appendChild(result);
+    row.appendChild(whoCell);
+    row.appendChild(whenCell);
+    row.appendChild(actionCell);
+    el.activityLogs.appendChild(row);
+  });
+}
 
-    const text = document.createElement("div");
-    text.className = "activity-text";
-    text.textContent = buildActivityText(log, activityData);
+function renderPurchaseLogs(logs) {
+  if (!el.purchaseLogs) return;
+  el.purchaseLogs.innerHTML = "";
 
-    item.appendChild(top);
-    item.appendChild(text);
-    el.activityLogs.appendChild(item);
+  if (!logs || !logs.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    cell.className = "table-empty";
+    cell.textContent = "No purchases found.";
+    row.appendChild(cell);
+    el.purchaseLogs.appendChild(row);
+    return;
+  }
+
+  logs.forEach((purchase) => {
+    const row = document.createElement("tr");
+
+    const lockerCell = document.createElement("td");
+    const lockerNumber = purchase.locker_number ?? purchase.locker_id;
+    lockerCell.textContent = lockerNumber ? `#${lockerNumber}` : "-";
+
+    const priceCell = document.createElement("td");
+    const amount = Number(purchase.amount);
+    const currency = purchase.currency ? String(purchase.currency).toUpperCase() : "EUR";
+    priceCell.textContent = Number.isFinite(amount) ? `${amount.toFixed(2)} ${currency}` : "-";
+
+    const timeCell = document.createElement("td");
+    timeCell.textContent = toLocalTime(purchase.purchased_at);
+
+    row.appendChild(lockerCell);
+    row.appendChild(priceCell);
+    row.appendChild(timeCell);
+    el.purchaseLogs.appendChild(row);
   });
 }
 
@@ -372,17 +475,19 @@ function applyOpModeButtonState(opModeValue) {
 
   el.toggleOpModeBtn.classList.remove("on", "off");
   el.toggleOpModeBtn.classList.add(state.opModeValue ? "on" : "off");
+  el.toggleOpModeBtn.classList.toggle("pending", hasPendingControl("opMode"));
   el.toggleOpModeBtn.textContent = `Operation mode: ${state.opModeValue ? "ON" : "OFF"}`;
 }
 
 function renderLightingModes() {
   if (!el.lightingModeButtons) return;
   el.lightingModeButtons.innerHTML = "";
+  const pending = hasPendingControl("lightingMode");
 
   LIGHTING_MODES.forEach((mode) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `lighting-mode-btn${state.lightingModeValue === mode.value ? " active" : ""}`;
+    button.className = `lighting-mode-btn${state.lightingModeValue === mode.value ? " active" : ""}${pending ? " pending" : ""}`;
     button.textContent = mode.label;
     button.addEventListener("click", () => {
       handleSetLightingMode(mode.value).catch((e) => setStatus(`Set lighting failed: ${e.message}`));
@@ -396,11 +501,12 @@ function renderLightingModes() {
 function renderFanButtons() {
   if (!el.fanButtons) return;
   el.fanButtons.innerHTML = "";
+  const pending = hasPendingControl("fan");
 
   FAN_BUTTONS.forEach((fan) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `state-btn ${state.fanStates[fan.key] ? "on" : "off"}`;
+    button.className = `state-btn ${state.fanStates[fan.key] ? "on" : "off"}${pending ? " pending" : ""}`;
     button.textContent = fan.label;
     button.addEventListener("click", () => {
       handleToggleFan(fan.key).catch((e) => setStatus(`Set fans failed: ${e.message}`));
@@ -410,12 +516,31 @@ function renderFanButtons() {
 
   const autoButton = document.createElement("button");
   autoButton.type = "button";
-  autoButton.className = `state-btn auto${state.fanStates.auto ? " active" : ""}`;
+  autoButton.className = `state-btn fan-auto ${state.fanStates.auto ? "on" : "off"}${pending ? " pending" : ""}`;
   autoButton.textContent = "Auto";
   autoButton.addEventListener("click", () => {
     handleSetFanAuto().catch((e) => setStatus(`Set fans failed: ${e.message}`));
   });
   el.fanButtons.appendChild(autoButton);
+
+  syncBusyUi();
+}
+
+function renderHeadlightButtons() {
+  if (!el.headlightButtons) return;
+  el.headlightButtons.innerHTML = "";
+  const pending = hasPendingControl("headLights");
+
+  HEADLIGHT_MODES.forEach((mode) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `state-btn ${state.headLightsValue === mode.value ? "on" : "off"}${pending ? " pending" : ""}`;
+    button.textContent = mode.label;
+    button.addEventListener("click", () => {
+      handleSetHeadLights(mode.value).catch((e) => setStatus(`Set head lights failed: ${e.message}`));
+    });
+    el.headlightButtons.appendChild(button);
+  });
 
   syncBusyUi();
 }
@@ -433,8 +558,12 @@ function syncControlModesFromStatusAndLocker() {
   const rawOpMode = state.machineStatus ? state.machineStatus.op_mode : false;
   state.opModeValue = coerceBoolean(rawOpMode);
 
+  const rawHeadLights = state.machineStatus ? Number(state.machineStatus.head_lights) : 0;
+  state.headLightsValue = [0, 1, 2].includes(rawHeadLights) ? rawHeadLights : 0;
+
   renderLightingModes();
   renderFanButtons();
+  renderHeadlightButtons();
   applyOpModeButtonState(state.opModeValue);
 }
 
@@ -517,10 +646,16 @@ function resetDashboard() {
   renderInfoList(el.machineStatus, [], "-");
   renderInfoList(el.adminStats, [], "Only shown for admin users.");
   renderActivityLogs([]);
+  renderPurchaseLogs([]);
   el.lockerGrid.innerHTML = "";
   state.lockers = [];
   state.selectedLockerId = null;
   state.machineStatus = null;
+  if (state.dbRefreshDebounceTimerId) {
+    window.clearTimeout(state.dbRefreshDebounceTimerId);
+    state.dbRefreshDebounceTimerId = null;
+  }
+  clearPendingControls();
   setSelectedLockerText();
   syncSelectedLockerFormFields();
   syncControlModesFromStatusAndLocker();
@@ -758,6 +893,51 @@ async function sendCommandAndRefresh(commandId, params = {}, lockerId = null, st
   });
 }
 
+async function sendCommandAndDebouncedRefresh(
+  commandId,
+  params = {},
+  lockerId = null,
+  statusLabel = "Command",
+  pendingKeys = []
+) {
+  if (state.activeCommandCount > 0) {
+    setStatus("Please wait for current command to finish.", true);
+    return null;
+  }
+
+  const keys = Array.isArray(pendingKeys) ? pendingKeys : [pendingKeys];
+  setPendingControls(keys, true);
+
+  let response = null;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      response = await publishMachineCommand(commandId, params, lockerId);
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2 && isRetryableCommandError(error)) {
+        await sleep(250);
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (lastError) {
+    setPendingControls(keys, false);
+    await loadDashboard({ quiet: true }).catch(() => {});
+    throw lastError;
+  }
+
+  scheduleDebouncedDashboardRefresh();
+  const requestId = response?.request_id ? ` request_id=${response.request_id}` : "";
+  setStatus(`${statusLabel} command sent.${requestId}`, true);
+  return response;
+}
+
 async function loadInitial() {
   state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
   if (!state.apiBaseUrl) {
@@ -845,12 +1025,13 @@ async function loadDashboard(options = {}) {
   }
 
   const machineId = state.selectedMachineId;
-  const [user, machine, status, lockers, activityLogs] = await Promise.all([
+  const [user, machine, status, lockers, activityLogs, purchaseLogs] = await Promise.all([
     api(`/users/${state.selectedUserId}`),
     api(`/machines/${machineId}`),
     api(`/machine_status/${machineId}`).catch(() => null),
     api(`/lockers?machine_id=${machineId}`),
     api(`/activity_logs?machine_id=${machineId}&limit=20`).catch(() => []),
+    api(`/purchase_logs?machine_id=${machineId}&limit=500`).catch(() => []),
   ]);
 
   state.machineStatus = status;
@@ -901,6 +1082,7 @@ async function loadDashboard(options = {}) {
         "current_humidity",
         "set_temperature",
         "fan_mode",
+        "head_lights",
         "op_mode",
         "water_status",
         "internet_connected",
@@ -914,6 +1096,7 @@ async function loadDashboard(options = {}) {
   );
 
   renderActivityLogs(activityLogs || []);
+  renderPurchaseLogs(purchaseLogs || []);
   renderLockers();
   syncControlModesFromStatusAndLocker();
   setSelectedLockerText();
@@ -971,7 +1154,13 @@ async function handleSetPrice() {
     setStatus("Price must be a number between 0 and 9999.");
     return;
   }
-  await sendCommandAndRefresh(COMMAND_IDS.SET_LOCKER_PRICE, { price }, state.selectedLockerId, "Set locker price");
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_LOCKER_PRICE,
+    { price },
+    state.selectedLockerId,
+    "Set locker price",
+    ["setPrice"]
+  );
 }
 
 async function handleSetColor() {
@@ -984,7 +1173,13 @@ async function handleSetColor() {
     setStatus("RGB values must be integers between 0 and 255.");
     return;
   }
-  await sendCommandAndRefresh(COMMAND_IDS.SET_LOCKER_COLOR, { color_r, color_g, color_b }, state.selectedLockerId, "Set locker color");
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_LOCKER_COLOR,
+    { color_r, color_g, color_b },
+    state.selectedLockerId,
+    "Set locker color",
+    ["setColor"]
+  );
 }
 
 async function handleSetLightingMode(modeValue) {
@@ -994,11 +1189,12 @@ async function handleSetLightingMode(modeValue) {
     return;
   }
 
-  await sendCommandAndRefresh(
+  await sendCommandAndDebouncedRefresh(
     COMMAND_IDS.SET_LIGHTING_MODE,
     { lighting_mode: modeValue },
     state.selectedLockerId,
-    `Set lighting mode ${modeValue}`
+    `Set lighting mode ${modeValue}`,
+    ["lightingMode"]
   );
 }
 
@@ -1012,18 +1208,52 @@ async function handleToggleFan(fanKey) {
   };
   const fan_mode = fanStatesToBitmask(nextStates);
 
-  await sendCommandAndRefresh(COMMAND_IDS.SET_FANS, { fan_mode }, null, "Set fans");
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_FANS,
+    { fan_mode },
+    null,
+    "Set fans",
+    ["fan"]
+  );
 }
 
 async function handleSetFanAuto() {
   if (!requireContext()) return;
-  await sendCommandAndRefresh(COMMAND_IDS.SET_FANS, { fan_mode: 255 }, null, "Set fans auto");
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_FANS,
+    { fan_mode: 255 },
+    null,
+    "Set fans auto",
+    ["fan"]
+  );
 }
 
 async function handleToggleOperationMode() {
   if (!requireContext()) return;
   const next = !state.opModeValue;
-  await sendCommandAndRefresh(COMMAND_IDS.SET_OPERATION_MODE, { op_mode: next }, null, "Set operation mode");
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_OPERATION_MODE,
+    { op_mode: next },
+    null,
+    "Set operation mode",
+    ["opMode"]
+  );
+}
+
+async function handleSetHeadLights(modeValue) {
+  if (!requireContext()) return;
+  if (![0, 1, 2].includes(modeValue)) {
+    setStatus("Head lights value must be 0 (Off), 1 (On), or 2 (Auto).");
+    return;
+  }
+
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_HEAD_LIGHTS,
+    { head_lights: modeValue },
+    null,
+    "Set head lights",
+    ["headLights"]
+  );
 }
 
 async function handleSetTemperature() {
@@ -1033,7 +1263,13 @@ async function handleSetTemperature() {
     setStatus("Set temperature must be numeric.");
     return;
   }
-  await sendCommandAndRefresh(COMMAND_IDS.SET_TEMPERATURE, { set_temperature }, null, "Set temperature");
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_TEMPERATURE,
+    { set_temperature },
+    null,
+    "Set temperature",
+    ["setTemp"]
+  );
 }
 
 async function handleRebootRpi() {
@@ -1156,6 +1392,8 @@ async function init() {
   wireEvents();
   renderLightingModes();
   renderFanButtons();
+  renderHeadlightButtons();
+  renderPurchaseLogs([]);
   applyOpModeButtonState(false);
   syncBusyUi();
   startAutoRefreshLoop();

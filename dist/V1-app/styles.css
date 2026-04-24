@@ -8,6 +8,9 @@
   --green: #3ebd6b;
   --red: #e05353;
   --orange: #ef9a32;
+  --pending-blue-bg: #e8f0ff;
+  --pending-blue-text: #1f4ea8;
+  --pending-blue-border: #88a9ea;
 }
 
 * {
@@ -450,15 +453,15 @@ h2 {
 .state-btn.pending,
 .state-toggle.pending,
 .btn.pending {
-  background: #eaf8ef;
-  color: #1a7f3a;
-  border-color: #84d39c;
+  background: var(--pending-blue-bg);
+  color: var(--pending-blue-text);
+  border-color: var(--pending-blue-border);
 }
 
 .lighting-mode-btn.pending {
-  background: #eaf8ef;
-  color: #1a7f3a;
-  border-color: #84d39c;
+  background: var(--pending-blue-bg);
+  color: var(--pending-blue-text);
+  border-color: var(--pending-blue-border);
 }
 
 .state-btn.auto {
@@ -558,12 +561,39 @@ h2 {
 
 @media (max-width: 768px) {
   .app-shell {
-    padding: 12px;
-    gap: 10px;
+    max-width: 100%;
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .card,
+  .top-card {
+    border-radius: 14px;
+    padding: 16px;
   }
 
   .top-card h1 {
-    font-size: 22px;
+    font-size: 28px;
+    line-height: 1.15;
+    text-align: center;
+  }
+
+  .eyebrow,
+  h2,
+  .subtle,
+  label,
+  .placeholder,
+  .info-label,
+  .info-value,
+  .status,
+  .data-table th,
+  .data-table td {
+    text-align: center;
+  }
+
+  h2 {
+    font-size: 24px;
+    margin-bottom: 14px;
   }
 
   input,
@@ -573,22 +603,30 @@ h2 {
   .state-btn,
   .state-toggle,
   .lighting-mode-btn {
-    font-size: 16px;
-    min-height: 48px;
-    padding: 12px 14px;
+    font-size: 19px;
+    min-height: 58px;
+    padding: 14px 16px;
+    border-radius: 12px;
+  }
+
+  .info-list,
+  .table-scroll {
+    padding: 12px;
   }
 
   .fan-button-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .headlight-button-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .table-scroll-activity,
   .table-scroll-purchases {
-    max-height: 320px;
+    max-height: 360px;
   }
 
   .data-table {
@@ -597,16 +635,16 @@ h2 {
 
   .data-table th,
   .data-table td {
-    font-size: 13px;
-    padding: 9px 10px;
+    font-size: 15px;
+    padding: 12px 10px;
   }
 
   .locker-btn {
-    min-height: 96px;
-    font-size: 18px;
+    min-height: 108px;
+    font-size: 20px;
   }
 
   .locker-btn small {
-    font-size: 13px;
+    font-size: 15px;
   }
 }

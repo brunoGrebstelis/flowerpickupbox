@@ -82,6 +82,7 @@ const state = {
   dbRefreshDebounceTimerId: null,
   dbRefreshDebounceMs: 370,
   pendingControlKeys: new Set(),
+  pendingLockerPriceById: new Map(),
   fanStates: {
     fan1: false,
     fan2: false,
@@ -651,6 +652,7 @@ function resetDashboard() {
   state.lockers = [];
   state.selectedLockerId = null;
   state.machineStatus = null;
+  state.pendingLockerPriceById.clear();
   if (state.dbRefreshDebounceTimerId) {
     window.clearTimeout(state.dbRefreshDebounceTimerId);
     state.dbRefreshDebounceTimerId = null;
@@ -682,8 +684,14 @@ function syncSelectedLockerFormFields() {
     return;
   }
 
-  el.lockerPrice.value = locker.price ?? "";
-  el.lockerPrice.dataset.fromDb = "1";
+  if (state.pendingLockerPriceById.has(locker.locker_id)) {
+    el.lockerPrice.value = state.pendingLockerPriceById.get(locker.locker_id) ?? "";
+    el.lockerPrice.dataset.fromDb = "0";
+  } else {
+    el.lockerPrice.value = locker.price ?? "";
+    el.lockerPrice.dataset.fromDb = "1";
+  }
+
   el.colorR.value = locker.color_r ?? "";
   el.colorG.value = locker.color_g ?? "";
   el.colorB.value = locker.color_b ?? "";
@@ -1037,6 +1045,22 @@ async function loadDashboard(options = {}) {
   state.machineStatus = status;
   state.lockers = lockers;
 
+  state.lockers.forEach((locker) => {
+    if (!state.pendingLockerPriceById.has(locker.locker_id)) return;
+
+    const optimisticPrice = Number(state.pendingLockerPriceById.get(locker.locker_id));
+    const dbPrice = Number(locker.price);
+
+    if (Number.isFinite(optimisticPrice) && Number.isFinite(dbPrice) && Math.abs(dbPrice - optimisticPrice) < 0.000001) {
+      state.pendingLockerPriceById.delete(locker.locker_id);
+      return;
+    }
+
+    if (Number.isFinite(optimisticPrice)) {
+      locker.price = optimisticPrice;
+    }
+  });
+
   if (!state.lockers.some((locker) => locker.locker_id === state.selectedLockerId)) {
     state.selectedLockerId = state.lockers.length ? state.lockers[0].locker_id : null;
   }
@@ -1149,18 +1173,32 @@ async function handleOpenLocker() {
 
 async function handleSetPrice() {
   if (!requireContext({ locker: true })) return;
+  const lockerId = state.selectedLockerId;
   const price = Number(el.lockerPrice.value);
   if (!Number.isFinite(price) || price < 0 || price > 9999) {
     setStatus("Price must be a number between 0 and 9999.");
     return;
   }
+
+  state.pendingLockerPriceById.set(lockerId, price);
+  const selectedLocker = getSelectedLocker();
+  if (selectedLocker && selectedLocker.locker_id === lockerId) {
+    selectedLocker.price = price;
+  }
+  syncSelectedLockerFormFields();
+
+  try {
   await sendCommandAndDebouncedRefresh(
     COMMAND_IDS.SET_LOCKER_PRICE,
     { price },
-    state.selectedLockerId,
+    lockerId,
     "Set locker price",
     ["setPrice"]
   );
+  } catch (error) {
+    state.pendingLockerPriceById.delete(lockerId);
+    throw error;
+  }
 }
 
 async function handleSetColor() {

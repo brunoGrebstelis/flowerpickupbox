@@ -32,10 +32,10 @@ const LIGHTING_MODES = [
 
 const FAN_BUTTONS = [
   { key: "fan1", label: "Fan1", bit: 1 },
-  { key: "fan2", label: "Fan2", bit: 4 },
-  { key: "fan3", label: "Fan3", bit: 8 },
-  { key: "fan4", label: "Fan4", bit: 16 },
-  { key: "fan5", label: "Fan5", bit: 32 },
+  { key: "fan2", label: "Fan2", bit: 2 },
+  { key: "fan3", label: "Fan3", bit: 4 },
+  { key: "fan4", label: "Fan4", bit: 8 },
+  { key: "fan5", label: "Fan5", bit: 16 },
 ];
 
 const HEADLIGHT_MODES = [

@@ -146,6 +146,12 @@ function coerceBoolean(value) {
   return Boolean(value);
 }
 
+function lockerIsOpened(locker) {
+  if (!locker || typeof locker !== "object") return false;
+  if ("is_opened" in locker) return coerceBoolean(locker.is_opened);
+  return coerceBoolean(locker.is_open);
+}
+
 function syncBusyUi() {
   const busy = state.activeCommandCount > 0;
   const staticButtons = [
@@ -277,7 +283,7 @@ function computeVerificationActual(commandId, lockerId = null) {
 
   switch (commandId) {
     case COMMAND_IDS.OPEN_LOCKER:
-      return selectedLocker ? coerceBoolean(selectedLocker.is_open) : null;
+      return selectedLocker ? lockerIsOpened(selectedLocker) : null;
     case COMMAND_IDS.SET_LOCKER_PRICE:
       return selectedLocker ? Number(selectedLocker.price) : null;
     case COMMAND_IDS.SET_LOCKER_COLOR:
@@ -457,6 +463,7 @@ function buildInfoEntriesFromObject(obj, preferredOrder = []) {
   const booleanLikeKeys = new Set([
     "is_active",
     "is_open",
+    "is_opened",
     "sold",
     "internet_connected",
     "rpi_alive",
@@ -994,15 +1001,15 @@ function scrollLockerCommandsIntoViewOnMobile() {
 }
 
 function lockerColorClass(locker) {
-  if (coerceBoolean(locker.is_open) && !coerceBoolean(locker.sold)) return "green";
-  if (coerceBoolean(locker.is_open)) return "orange";
+  if (lockerIsOpened(locker) && !coerceBoolean(locker.sold)) return "green";
+  if (lockerIsOpened(locker)) return "orange";
   if (coerceBoolean(locker.sold)) return "red";
   return "green";
 }
 
 function lockerStateLabel(locker) {
-  if (coerceBoolean(locker.is_open) && !coerceBoolean(locker.sold)) return "FREE";
-  if (coerceBoolean(locker.is_open)) return "OPEN";
+  if (lockerIsOpened(locker) && !coerceBoolean(locker.sold)) return "FREE";
+  if (lockerIsOpened(locker)) return "OPEN";
   if (coerceBoolean(locker.sold)) return "SOLD";
   return "FREE";
 }
@@ -1020,7 +1027,7 @@ function renderLockers() {
 
   state.lockers.forEach((locker) => {
     const button = document.createElement("button");
-    button.className = `locker-btn ${lockerColorClass(locker)}${locker.locker_id === state.selectedLockerId ? " active" : ""}`;
+    button.className = `locker-btn ${lockerColorClass(locker)}${locker.locker_id === state.selectedLockerId ? " active" : ""}${lockerIsOpened(locker) ? " opened-text" : ""}`;
     button.innerHTML = `<span>L${locker.locker_number}</span><small>${lockerStateLabel(locker)}</small>`;
     button.addEventListener("click", () => {
       state.selectedLockerId = locker.locker_id;

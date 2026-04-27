@@ -392,6 +392,11 @@ h2 {
   opacity: 0.95;
 }
 
+.locker-btn.opened-text span,
+.locker-btn.opened-text small {
+  color: var(--orange);
+}
+
 .locker-btn.green {
   background: var(--green);
 }

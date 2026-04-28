@@ -44,6 +44,9 @@ const HEADLIGHT_MODES = [
   { value: 2, label: "Auto" },
 ];
 
+const VERIFICATION_REFRESH_DELAYS_MS = [150, 200, 250];
+const MAX_VERIFICATION_SEND_ATTEMPTS = VERIFICATION_REFRESH_DELAYS_MS.length;
+
 function resolveInitialApiBaseUrl() {
   const fromQuery = new URLSearchParams(window.location.search).get("api");
   if (fromQuery && fromQuery.trim()) {
@@ -343,8 +346,18 @@ async function processPendingVerifications() {
   state.pendingVerifications = [];
 
   for (const item of queue) {
-    const { commandId, params = {}, lockerId = null, statusLabel = "Command", pendingKeys = [], attempts = 1 } = item;
+    const {
+      commandId,
+      params = {},
+      lockerId = null,
+      statusLabel = "Command",
+      pendingKeys = [],
+      attempts = 1,
+    } = item;
     const keys = Array.isArray(pendingKeys) ? pendingKeys : [pendingKeys];
+    const attemptCount = Number.isInteger(Number(attempts)) && Number(attempts) > 0
+      ? Number(attempts)
+      : 1;
     const expected = item.expected !== undefined ? item.expected : null;
     const actual = computeVerificationActual(commandId, lockerId);
     const success = verificationMatchesExpected(actual, expected);
@@ -358,11 +371,17 @@ async function processPendingVerifications() {
       continue;
     }
 
-    if (attempts >= 2) {
+    if (attemptCount >= MAX_VERIFICATION_SEND_ATTEMPTS) {
+      if (commandId === COMMAND_IDS.SET_LOCKER_PRICE && lockerId != null) {
+        state.pendingLockerPriceById.delete(lockerId);
+      }
       setFailedControls(keys, true);
       setPendingControls(keys, false);
       const label = keys.includes("setPrice") ? "Price" : statusLabel;
-      setStatus(`${label} not confirmed after 2 tries.`, false);
+      setStatus(`${label} not confirmed after ${MAX_VERIFICATION_SEND_ATTEMPTS} tries.`, false);
+      scheduleDebouncedDashboardRefresh({
+        delayMs: getVerificationDelayMs(attemptCount + 1),
+      });
       continue;
     }
 
@@ -385,21 +404,52 @@ async function processPendingVerifications() {
     }
 
     if (retryError) {
+      if (commandId === COMMAND_IDS.SET_LOCKER_PRICE && lockerId != null) {
+        state.pendingLockerPriceById.delete(lockerId);
+      }
       setFailedControls(keys, true);
       setPendingControls(keys, false);
       setStatus(`${statusLabel} retry failed: ${retryError.message}`, false);
+      scheduleDebouncedDashboardRefresh({
+        delayMs: getVerificationDelayMs(attemptCount + 1),
+      });
       continue;
     }
 
+    const nextAttemptCount = attemptCount + 1;
     queueVerification({
       ...item,
-      attempts: attempts + 1,
+      attempts: nextAttemptCount,
     });
-    scheduleDebouncedDashboardRefresh();
+    scheduleDebouncedDashboardRefresh({
+      delayMs: getVerificationDelayMs(nextAttemptCount),
+    });
   }
 }
 
-function scheduleDebouncedDashboardRefresh() {
+function getVerificationDelayMs(attemptNumber = 1) {
+  const parsed = Number(attemptNumber);
+  const index = Number.isInteger(parsed) && parsed > 0 ? parsed - 1 : 0;
+  const value = VERIFICATION_REFRESH_DELAYS_MS[index];
+  if (Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+
+  const last = VERIFICATION_REFRESH_DELAYS_MS[VERIFICATION_REFRESH_DELAYS_MS.length - 1];
+  if (Number.isFinite(last) && last >= 0) {
+    return last;
+  }
+
+  return state.dbRefreshDebounceMs;
+}
+
+function scheduleDebouncedDashboardRefresh(options = {}) {
+  const requestedDelay = Number(options.delayMs);
+  const delayMs = Number.isFinite(requestedDelay) && requestedDelay >= 0
+    ? requestedDelay
+    : state.dbRefreshDebounceMs;
+  const clearPendingKeys = Array.isArray(options.clearPendingKeys) ? options.clearPendingKeys : null;
+
   if (state.dbRefreshDebounceTimerId) {
     window.clearTimeout(state.dbRefreshDebounceTimerId);
   }
@@ -411,9 +461,11 @@ function scheduleDebouncedDashboardRefresh() {
     } catch (error) {
       setStatus(`Dashboard refresh failed: ${error.message}`);
     } finally {
-      clearPendingControls();
+      if (clearPendingKeys && clearPendingKeys.length) {
+        setPendingControls(clearPendingKeys, false);
+      }
     }
-  }, state.dbRefreshDebounceMs);
+  }, delayMs);
 }
 
 function bitmaskToFanStates(fanMode) {
@@ -1234,6 +1286,10 @@ async function sendCommandAndDebouncedRefresh(
     throw lastError;
   }
 
+  const initialAttempt = Number.isInteger(Number(options.attempts)) && Number(options.attempts) > 0
+    ? Number(options.attempts)
+    : 1;
+
   if (options.verifyAfterRefresh) {
     queueVerification({
       commandId,
@@ -1242,11 +1298,18 @@ async function sendCommandAndDebouncedRefresh(
       statusLabel,
       pendingKeys: keys,
       expected: options.expected,
-      attempts: options.attempts || 1,
+      attempts: initialAttempt,
+    });
+    scheduleDebouncedDashboardRefresh({
+      delayMs: getVerificationDelayMs(initialAttempt),
+    });
+  } else {
+    scheduleDebouncedDashboardRefresh({
+      delayMs: state.dbRefreshDebounceMs,
+      clearPendingKeys: keys,
     });
   }
 
-  scheduleDebouncedDashboardRefresh();
   const requestId = response?.request_id ? ` request_id=${response.request_id}` : "";
   setStatus(`${statusLabel} command sent.${requestId}`, true);
   return response;

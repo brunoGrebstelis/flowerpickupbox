@@ -118,6 +118,7 @@ const el = {
   openLockerBtn: document.getElementById("openLockerBtn"),
   setPriceBtn: document.getElementById("setPriceBtn"),
   setColorBtn: document.getElementById("setColorBtn"),
+  setColorAllBtn: document.getElementById("setColorAllBtn"),
   setTemp: document.getElementById("setTemp"),
   setTempBtn: document.getElementById("setTempBtn"),
   fanButtons: document.getElementById("fanButtons"),
@@ -162,6 +163,7 @@ function syncBusyUi() {
     el.openLockerBtn,
     el.setPriceBtn,
     el.setColorBtn,
+    el.setColorAllBtn,
     el.setTempBtn,
     el.toggleOpModeBtn,
     el.rebootRpiBtn,
@@ -241,6 +243,7 @@ function syncPendingControlUi() {
     [el.openLockerBtn, "openLocker"],
     [el.setPriceBtn, "setPrice"],
     [el.setColorBtn, "setColor"],
+    [el.setColorAllBtn, "setColor"],
     [el.setTempBtn, "setTemp"],
   ];
 
@@ -1608,6 +1611,34 @@ async function handleSetColor() {
   );
 }
 
+async function handleSetColorAll() {
+  if (!requireContext()) return;
+  const color_r = Number(el.colorR.value);
+  const color_g = Number(el.colorG.value);
+  const color_b = Number(el.colorB.value);
+  const all = [color_r, color_g, color_b];
+  if (all.some((x) => !Number.isInteger(x) || x < 0 || x > 255)) {
+    setStatus("RGB values must be integers between 0 and 255.");
+    return;
+  }
+
+  await sendCommandAndDebouncedRefresh(
+    COMMAND_IDS.SET_LOCKER_COLOR,
+    {
+      color_r,
+      color_g,
+      color_b,
+      locker_number: 255,
+    },
+    null,
+    "Set all locker colors",
+    ["setColor"],
+    {
+      verifyAfterRefresh: false,
+    }
+  );
+}
+
 async function handleSetLightingMode(modeValue) {
   if (!requireContext({ locker: true })) return;
   if (!Number.isInteger(modeValue) || modeValue < 1 || modeValue > 5) {
@@ -1832,6 +1863,7 @@ function wireEvents() {
   el.openLockerBtn.addEventListener("click", () => handleOpenLocker().catch((e) => setStatus(`Open locker failed: ${e.message}`)));
   el.setPriceBtn.addEventListener("click", () => handleSetPrice().catch((e) => setStatus(`Set price failed: ${e.message}`)));
   el.setColorBtn.addEventListener("click", () => handleSetColor().catch((e) => setStatus(`Set color failed: ${e.message}`)));
+  el.setColorAllBtn.addEventListener("click", () => handleSetColorAll().catch((e) => setStatus(`Set all colors failed: ${e.message}`)));
   el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
   el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
   el.rebootRpiBtn.addEventListener("click", () => handleRebootRpi().catch((e) => setStatus(`Reboot RPI failed: ${e.message}`)));

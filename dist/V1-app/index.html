@@ -19,6 +19,17 @@
         <label for="apiBaseUrl">API URL</label>
         <input id="apiBaseUrl" type="text" inputmode="url" autocomplete="off" value="" placeholder="https://<api-id>.execute-api.eu-central-1.amazonaws.com" />
       </div>
+      <div class="auth-config">
+        <label for="authEmail">Email</label>
+        <input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com" />
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password" />
+        <div class="actions auth-actions">
+          <button id="signInBtn" class="btn btn-primary" type="button">Sign in</button>
+          <button id="signOutBtn" class="btn" type="button">Sign out</button>
+        </div>
+        <p id="authStatus" class="subtle auth-status">Not signed in</p>
+      </div>
     </header>
 
     <section class="card selector-card">

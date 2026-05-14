@@ -4,6 +4,11 @@ const STORAGE_KEYS = {
   apiBaseUrl: "apiBaseUrl",
   selectedUserId: "selectedUserId",
   selectedMachineId: "selectedMachineId",
+  authIdToken: "authIdToken",
+  authAccessToken: "authAccessToken",
+  authRefreshToken: "authRefreshToken",
+  authExpiresAt: "authExpiresAt",
+  authEmail: "authEmail",
 };
 
 const COMMAND_IDS = {
@@ -63,6 +68,21 @@ function resolveInitialApiBaseUrl() {
 
 const state = {
   apiBaseUrl: resolveInitialApiBaseUrl(),
+  authConfig: {
+    enabled: false,
+    region: "",
+    userPoolId: "",
+    appClientId: "",
+    issuer: "",
+  },
+  auth: {
+    isAuthenticated: false,
+    idToken: "",
+    accessToken: "",
+    refreshToken: "",
+    expiresAt: 0,
+    email: "",
+  },
   users: [],
   machines: [],
   membershipsByCompany: new Map(),
@@ -88,6 +108,7 @@ const state = {
   failedControlKeys: new Set(),
   pendingVerifications: [],
   pendingLockerPriceById: new Map(),
+  pendingLockerColorById: new Map(),
   fanStates: {
     fan1: false,
     fan2: false,
@@ -100,6 +121,11 @@ const state = {
 
 const el = {
   apiBaseUrl: document.getElementById("apiBaseUrl"),
+  authEmail: document.getElementById("authEmail"),
+  authPassword: document.getElementById("authPassword"),
+  signInBtn: document.getElementById("signInBtn"),
+  signOutBtn: document.getElementById("signOutBtn"),
+  authStatus: document.getElementById("authStatus"),
   userSelect: document.getElementById("userSelect"),
   machineSelect: document.getElementById("machineSelect"),
   loadBtn: document.getElementById("loadBtn"),
@@ -131,6 +157,146 @@ const el = {
   purchaseLogs: document.getElementById("purchaseLogs"),
 };
 
+function setAuthStatus(message, ok = false) {
+  if (!el.authStatus) return;
+  el.authStatus.textContent = message;
+  el.authStatus.classList.remove("ok", "error");
+  if (message) {
+    el.authStatus.classList.add(ok ? "ok" : "error");
+  }
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem(STORAGE_KEYS.authIdToken);
+  localStorage.removeItem(STORAGE_KEYS.authAccessToken);
+  localStorage.removeItem(STORAGE_KEYS.authRefreshToken);
+  localStorage.removeItem(STORAGE_KEYS.authExpiresAt);
+  localStorage.removeItem(STORAGE_KEYS.authEmail);
+}
+
+function rememberAuth(authResult, fallbackEmail = "") {
+  const idToken = String(authResult?.IdToken || "");
+  const accessToken = String(authResult?.AccessToken || "");
+  const refreshTokenFromResult = String(authResult?.RefreshToken || "");
+  const refreshToken = refreshTokenFromResult || state.auth.refreshToken || "";
+  const expiresInSeconds = Number(authResult?.ExpiresIn || 3600);
+  const expiresAt = Date.now() + Math.max(30, expiresInSeconds - 30) * 1000;
+
+  const tokenEmail = (() => {
+    try {
+      const payloadRaw = idToken.split(".")[1] || "";
+      const normalized = payloadRaw.replace(/-/g, "+").replace(/_/g, "/");
+      const decoded = JSON.parse(atob(normalized));
+      return String(decoded?.email || "").trim();
+    } catch {
+      return "";
+    }
+  })();
+
+  const email = tokenEmail || fallbackEmail || state.auth.email || "";
+
+  state.auth.idToken = idToken;
+  state.auth.accessToken = accessToken;
+  state.auth.refreshToken = refreshToken;
+  state.auth.expiresAt = expiresAt;
+  state.auth.email = email;
+
+  localStorage.setItem(STORAGE_KEYS.authIdToken, idToken);
+  localStorage.setItem(STORAGE_KEYS.authAccessToken, accessToken);
+  localStorage.setItem(STORAGE_KEYS.authRefreshToken, refreshToken);
+  localStorage.setItem(STORAGE_KEYS.authExpiresAt, String(expiresAt));
+  localStorage.setItem(STORAGE_KEYS.authEmail, email);
+}
+
+function resetAuthState() {
+  state.auth.isAuthenticated = false;
+  state.auth.idToken = "";
+  state.auth.accessToken = "";
+  state.auth.refreshToken = "";
+  state.auth.expiresAt = 0;
+  state.auth.email = "";
+}
+
+function cognitoEndpoint() {
+  return `https://cognito-idp.${state.authConfig.region}.amazonaws.com/`;
+}
+
+async function cognitoRequest(target, payload) {
+  const response = await fetch(cognitoEndpoint(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-amz-json-1.1",
+      "X-Amz-Target": target,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text || "Unknown Cognito error" };
+  }
+
+  if (!response.ok) {
+    const msg = data?.message || data?.Message || data?.__type || `HTTP ${response.status}`;
+    throw new Error(`Cognito auth failed: ${msg}`);
+  }
+
+  return data;
+}
+
+async function signInWithCognito(email, password) {
+  const data = await cognitoRequest(
+    "AWSCognitoIdentityProviderService.InitiateAuth",
+    {
+      AuthFlow: "USER_PASSWORD_AUTH",
+      ClientId: state.authConfig.appClientId,
+      AuthParameters: {
+        USERNAME: email,
+        PASSWORD: password,
+      },
+    }
+  );
+
+  if (data?.ChallengeName) {
+    throw new Error(`Cognito challenge not supported in this frontend: ${data.ChallengeName}`);
+  }
+
+  if (!data?.AuthenticationResult?.IdToken) {
+    throw new Error("Cognito did not return IdToken.");
+  }
+
+  rememberAuth(data.AuthenticationResult, email);
+  state.auth.isAuthenticated = true;
+}
+
+async function refreshCognitoSession() {
+  if (!state.auth.refreshToken || !state.authConfig.appClientId) {
+    return false;
+  }
+
+  const data = await cognitoRequest(
+    "AWSCognitoIdentityProviderService.InitiateAuth",
+    {
+      AuthFlow: "REFRESH_TOKEN_AUTH",
+      ClientId: state.authConfig.appClientId,
+      AuthParameters: {
+        REFRESH_TOKEN: state.auth.refreshToken,
+      },
+    }
+  );
+
+  if (!data?.AuthenticationResult?.IdToken) {
+    return false;
+  }
+
+  rememberAuth(data.AuthenticationResult, state.auth.email || localStorage.getItem(STORAGE_KEYS.authEmail) || "");
+  state.auth.isAuthenticated = true;
+  return true;
+}
+
 function setStatus(message, ok = false) {
   el.statusBar.textContent = message;
   el.statusBar.classList.remove("ok", "error");
@@ -158,6 +324,7 @@ function lockerIsOpened(locker) {
 
 function syncBusyUi() {
   const busy = state.activeCommandCount > 0;
+  const canUseApp = state.auth.isAuthenticated;
   const staticButtons = [
     el.loadBtn,
     el.openLockerBtn,
@@ -173,8 +340,22 @@ function syncBusyUi() {
   staticButtons
     .filter(Boolean)
     .forEach((button) => {
-      button.disabled = busy;
+      button.disabled = busy || !canUseApp;
     });
+
+  if (el.userSelect) {
+    el.userSelect.disabled = !canUseApp;
+  }
+  if (el.machineSelect) {
+    el.machineSelect.disabled = !canUseApp || state.allowedMachines.length === 0;
+  }
+
+  if (el.signInBtn) {
+    el.signInBtn.disabled = busy || !state.authConfig.enabled || canUseApp;
+  }
+  if (el.signOutBtn) {
+    el.signOutBtn.disabled = !canUseApp;
+  }
 
   const dynamicButtons = [
     ...(el.lockerGrid ? Array.from(el.lockerGrid.querySelectorAll("button")) : []),
@@ -184,7 +365,7 @@ function syncBusyUi() {
   ];
 
   dynamicButtons.forEach((button) => {
-    button.disabled = busy;
+    button.disabled = busy || !canUseApp;
   });
 }
 
@@ -378,6 +559,9 @@ async function processPendingVerifications() {
       if (commandId === COMMAND_IDS.SET_LOCKER_PRICE && lockerId != null) {
         state.pendingLockerPriceById.delete(lockerId);
       }
+      if (commandId === COMMAND_IDS.SET_LOCKER_COLOR && lockerId != null) {
+        state.pendingLockerColorById.delete(lockerId);
+      }
       setFailedControls(keys, true);
       setPendingControls(keys, false);
       const label = keys.includes("setPrice") ? "Price" : statusLabel;
@@ -409,6 +593,9 @@ async function processPendingVerifications() {
     if (retryError) {
       if (commandId === COMMAND_IDS.SET_LOCKER_PRICE && lockerId != null) {
         state.pendingLockerPriceById.delete(lockerId);
+      }
+      if (commandId === COMMAND_IDS.SET_LOCKER_COLOR && lockerId != null) {
+        state.pendingLockerColorById.delete(lockerId);
       }
       setFailedControls(keys, true);
       setPendingControls(keys, false);
@@ -912,28 +1099,33 @@ function syncControlModesFromStatusAndLocker() {
 }
 
 async function api(path, options = {}, attempt = 1) {
+  const { skipAuth = false, ...fetchOptions } = options;
   const url = `${state.apiBaseUrl}${path}`;
-  const method = (options.method || "GET").toUpperCase();
+  const method = (fetchOptions.method || "GET").toUpperCase();
   const defaultHeaders = method === "GET" || method === "HEAD"
     ? {}
     : { "Content-Type": "application/json" };
   const headers = {
     ...defaultHeaders,
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
+
+  if (!skipAuth && state.auth.idToken) {
+    headers.Authorization = `Bearer ${state.auth.idToken}`;
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), state.requestTimeoutMs);
 
   let response;
   try {
-    response = await fetch(url, { ...options, headers, signal: controller.signal });
+    response = await fetch(url, { ...fetchOptions, headers, signal: controller.signal });
   } catch (e) {
     clearTimeout(timeoutId);
 
     if (attempt < 2) {
       await sleep(250);
-      return api(path, options, attempt + 1);
+      return api(path, { ...fetchOptions, skipAuth }, attempt + 1);
     }
 
     const reason = location.protocol === "file:"
@@ -943,6 +1135,17 @@ async function api(path, options = {}, attempt = 1) {
     throw new Error(`${reason} URL=${url} DETAILS=${details}`);
   } finally {
     clearTimeout(timeoutId);
+  }
+
+  if (response.status === 401 && !skipAuth && attempt < 2) {
+    try {
+      const refreshed = await refreshCognitoSession();
+      if (refreshed) {
+        return api(path, { ...fetchOptions, skipAuth: false }, attempt + 1);
+      }
+    } catch {
+      // Let normal error handling run below.
+    }
   }
 
   const text = await response.text();
@@ -996,6 +1199,7 @@ function resetDashboard() {
   state.selectedLockerId = null;
   state.machineStatus = null;
   state.pendingLockerPriceById.clear();
+  state.pendingLockerColorById.clear();
   if (state.dbRefreshDebounceTimerId) {
     window.clearTimeout(state.dbRefreshDebounceTimerId);
     state.dbRefreshDebounceTimerId = null;
@@ -1336,6 +1540,137 @@ async function loadInitial() {
   setStatus(`Loaded ${users.length} users and ${machines.length} machines.`, true);
 }
 
+async function loadAuthConfig() {
+  const config = await api("/auth/config", { skipAuth: true });
+  state.authConfig.enabled = Boolean(config?.enabled);
+  state.authConfig.region = String(config?.region || "");
+  state.authConfig.userPoolId = String(config?.user_pool_id || "");
+  state.authConfig.appClientId = String(config?.app_client_id || "");
+  state.authConfig.issuer = String(config?.issuer || "");
+
+  if (!state.authConfig.enabled) {
+    setAuthStatus("Auth is not configured on backend.");
+  }
+}
+
+async function restoreAuthFromStorageAndRefreshIfNeeded() {
+  const storedRefresh = (localStorage.getItem(STORAGE_KEYS.authRefreshToken) || "").trim();
+  if (!storedRefresh) {
+    return false;
+  }
+
+  state.auth.idToken = (localStorage.getItem(STORAGE_KEYS.authIdToken) || "").trim();
+  state.auth.accessToken = (localStorage.getItem(STORAGE_KEYS.authAccessToken) || "").trim();
+  state.auth.refreshToken = storedRefresh;
+  state.auth.expiresAt = Number(localStorage.getItem(STORAGE_KEYS.authExpiresAt) || "0");
+  state.auth.email = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim();
+
+  const now = Date.now();
+  if (!state.auth.idToken || !Number.isFinite(state.auth.expiresAt) || state.auth.expiresAt <= now + 30000) {
+    return refreshCognitoSession();
+  }
+
+  state.auth.isAuthenticated = true;
+  return true;
+}
+
+async function restoreMachineSelectionAndAutoloadDashboard() {
+  const storedMachineIdRaw = localStorage.getItem(STORAGE_KEYS.selectedMachineId);
+  if (!storedMachineIdRaw) return;
+
+  const storedMachineId = Number(storedMachineIdRaw);
+  if (!Number.isInteger(storedMachineId)) return;
+  if (!state.allowedMachines.some((x) => Number(x.machine.machine_id) === storedMachineId)) return;
+
+  state.selectedMachineId = storedMachineId;
+  el.machineSelect.value = String(storedMachineId);
+  onMachineSelected();
+  persistSelection();
+  await loadDashboard();
+}
+
+async function bootstrapAuthenticatedApp() {
+  const sessionBefore = await api("/auth/session");
+  if (sessionBefore?.needs_profile) {
+    await api("/auth/complete-profile", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  const session = sessionBefore?.needs_profile ? await api("/auth/session") : sessionBefore;
+  if (!session?.user?.user_id) {
+    throw new Error("Authenticated user profile is unavailable.");
+  }
+
+  await loadInitial();
+
+  const authUserId = Number(session.user.user_id);
+  const authUserEmail = String(session.user.email || state.auth.email || "");
+  state.users = state.users.filter((u) => Number(u.user_id) === authUserId);
+  if (!state.users.length) {
+    state.users = [session.user];
+  }
+  populateUsers();
+
+  state.selectedUserId = authUserId;
+  el.userSelect.value = String(authUserId);
+  el.userSelect.disabled = true;
+
+  await onUserSelected();
+  await restoreMachineSelectionAndAutoloadDashboard();
+
+  state.auth.isAuthenticated = true;
+  setAuthStatus(`Signed in as ${authUserEmail || `user #${authUserId}`}.`, true);
+  syncBusyUi();
+}
+
+async function handleSignIn() {
+  if (!state.authConfig.enabled) {
+    throw new Error("Authentication is not configured by backend.");
+  }
+
+  const email = (el.authEmail?.value || "").trim().toLowerCase();
+  const password = String(el.authPassword?.value || "");
+  if (!email || !password) {
+    throw new Error("Enter email and password.");
+  }
+
+  setAuthStatus("Signing in...", true);
+  await signInWithCognito(email, password);
+  await bootstrapAuthenticatedApp();
+  if (el.authPassword) {
+    el.authPassword.value = "";
+  }
+}
+
+function handleSignOut() {
+  clearAuthStorage();
+  resetAuthState();
+
+  state.users = [];
+  state.machines = [];
+  state.allowedMachines = [];
+  state.membershipsByCompany.clear();
+  state.selectedUserId = null;
+  state.selectedMachineId = null;
+  state.selectedCompanyId = null;
+  state.selectedRole = null;
+
+  el.userSelect.innerHTML = "<option value=''>Choose user</option>";
+  el.userSelect.disabled = true;
+  el.machineSelect.innerHTML = "<option value=''>Choose machine</option>";
+  el.machineSelect.disabled = true;
+
+  localStorage.removeItem(STORAGE_KEYS.selectedUserId);
+  localStorage.removeItem(STORAGE_KEYS.selectedMachineId);
+
+  resetDashboard();
+  setAuthStatus("Signed out.", true);
+  setStatus("Sign in to continue.", true);
+  syncBusyUi();
+}
+
 async function onUserSelected() {
   resetDashboard();
   state.selectedUserId = el.userSelect.value ? Number(el.userSelect.value) : null;
@@ -1430,6 +1765,37 @@ async function loadDashboard(options = {}) {
 
     if (Number.isFinite(optimisticPrice)) {
       locker.price = optimisticPrice;
+    }
+  });
+
+  state.lockers.forEach((locker) => {
+    if (!state.pendingLockerColorById.has(locker.locker_id)) return;
+
+    const optimisticColor = state.pendingLockerColorById.get(locker.locker_id) || {};
+    const optimisticR = Number(optimisticColor.color_r);
+    const optimisticG = Number(optimisticColor.color_g);
+    const optimisticB = Number(optimisticColor.color_b);
+    const dbR = Number(locker.color_r);
+    const dbG = Number(locker.color_g);
+    const dbB = Number(locker.color_b);
+
+    const dbMatchesOptimistic =
+      Number.isInteger(optimisticR)
+      && Number.isInteger(optimisticG)
+      && Number.isInteger(optimisticB)
+      && dbR === optimisticR
+      && dbG === optimisticG
+      && dbB === optimisticB;
+
+    if (dbMatchesOptimistic) {
+      state.pendingLockerColorById.delete(locker.locker_id);
+      return;
+    }
+
+    if (Number.isInteger(optimisticR) && Number.isInteger(optimisticG) && Number.isInteger(optimisticB)) {
+      locker.color_r = optimisticR;
+      locker.color_g = optimisticG;
+      locker.color_b = optimisticB;
     }
   });
 
@@ -1590,6 +1956,7 @@ async function handleSetPrice() {
 
 async function handleSetColor() {
   if (!requireContext({ locker: true })) return;
+  const lockerId = state.selectedLockerId;
   const color_r = Number(el.colorR.value);
   const color_g = Number(el.colorG.value);
   const color_b = Number(el.colorB.value);
@@ -1598,17 +1965,33 @@ async function handleSetColor() {
     setStatus("RGB values must be integers between 0 and 255.");
     return;
   }
-  await sendCommandAndDebouncedRefresh(
-    COMMAND_IDS.SET_LOCKER_COLOR,
-    { color_r, color_g, color_b },
-    state.selectedLockerId,
-    "Set locker color",
-    ["setColor"],
-    {
-      verifyAfterRefresh: true,
-      expected: { color_r, color_g, color_b },
-    }
-  );
+
+  state.pendingLockerColorById.set(lockerId, { color_r, color_g, color_b });
+  const selectedLocker = getSelectedLocker();
+  if (selectedLocker && selectedLocker.locker_id === lockerId) {
+    selectedLocker.color_r = color_r;
+    selectedLocker.color_g = color_g;
+    selectedLocker.color_b = color_b;
+  }
+  syncSelectedLockerFormFields();
+
+  try {
+    await sendCommandAndDebouncedRefresh(
+      COMMAND_IDS.SET_LOCKER_COLOR,
+      { color_r, color_g, color_b },
+      lockerId,
+      "Set locker color",
+      ["setColor"],
+      {
+        verifyAfterRefresh: true,
+        expected: { color_r, color_g, color_b },
+      }
+    );
+  } catch (error) {
+    state.pendingLockerColorById.delete(lockerId);
+    await loadDashboard({ quiet: true }).catch(() => {});
+    throw error;
+  }
 }
 
 async function handleSetColorAll() {
@@ -1622,21 +2005,43 @@ async function handleSetColorAll() {
     return;
   }
 
-  await sendCommandAndDebouncedRefresh(
-    COMMAND_IDS.SET_LOCKER_COLOR,
-    {
-      color_r,
-      color_g,
-      color_b,
-      locker_number: 255,
-    },
-    null,
-    "Set all locker colors",
-    ["setColor"],
-    {
-      verifyAfterRefresh: false,
-    }
-  );
+  const lockerIds = state.lockers
+    .map((locker) => Number(locker.locker_id))
+    .filter((id) => Number.isInteger(id));
+
+  lockerIds.forEach((lockerId) => {
+    state.pendingLockerColorById.set(lockerId, { color_r, color_g, color_b });
+  });
+  state.lockers.forEach((locker) => {
+    locker.color_r = color_r;
+    locker.color_g = color_g;
+    locker.color_b = color_b;
+  });
+  syncSelectedLockerFormFields();
+
+  try {
+    await sendCommandAndDebouncedRefresh(
+      COMMAND_IDS.SET_LOCKER_COLOR,
+      {
+        color_r,
+        color_g,
+        color_b,
+        locker_number: 255,
+      },
+      null,
+      "Set all locker colors",
+      ["setColor"],
+      {
+        verifyAfterRefresh: false,
+      }
+    );
+  } catch (error) {
+    lockerIds.forEach((lockerId) => {
+      state.pendingLockerColorById.delete(lockerId);
+    });
+    await loadDashboard({ quiet: true }).catch(() => {});
+    throw error;
+  }
 }
 
 async function handleSetLightingMode(modeValue) {
@@ -1764,6 +2169,20 @@ async function handleRebootStm32() {
 }
 
 function clearAll() {
+  if (state.auth.isAuthenticated && state.selectedUserId) {
+    state.selectedMachineId = null;
+    state.selectedCompanyId = null;
+    state.selectedRole = null;
+    state.membershipsByCompany.clear();
+
+    el.machineSelect.value = "";
+    populateMachines();
+    resetDashboard();
+    localStorage.removeItem(STORAGE_KEYS.selectedMachineId);
+    setStatus("");
+    return;
+  }
+
   state.selectedUserId = null;
   state.selectedMachineId = null;
   state.selectedCompanyId = null;
@@ -1853,6 +2272,7 @@ function wireEvents() {
   });
 
   el.userSelect.addEventListener("change", () => {
+    if (!state.auth.isAuthenticated) return;
     onUserSelected().catch((e) => setStatus(`Failed to load user machines: ${e.message}`));
   });
 
@@ -1868,6 +2288,32 @@ function wireEvents() {
   el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
   el.rebootRpiBtn.addEventListener("click", () => handleRebootRpi().catch((e) => setStatus(`Reboot RPI failed: ${e.message}`)));
   el.rebootStmBtn.addEventListener("click", () => handleRebootStm32().catch((e) => setStatus(`Reboot STM32 failed: ${e.message}`)));
+
+  if (el.signInBtn) {
+    el.signInBtn.addEventListener("click", () => {
+      handleSignIn().catch((e) => {
+        setAuthStatus(`Sign-in failed: ${e.message}`);
+        setStatus(`Sign-in failed: ${e.message}`);
+        syncBusyUi();
+      });
+    });
+  }
+
+  if (el.signOutBtn) {
+    el.signOutBtn.addEventListener("click", handleSignOut);
+  }
+
+  if (el.authPassword) {
+    el.authPassword.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      handleSignIn().catch((e) => {
+        setAuthStatus(`Sign-in failed: ${e.message}`);
+        setStatus(`Sign-in failed: ${e.message}`);
+        syncBusyUi();
+      });
+    });
+  }
 }
 
 async function init() {
@@ -1880,16 +2326,31 @@ async function init() {
   syncBusyUi();
   startAutoRefreshLoop();
 
+  el.userSelect.disabled = true;
+  el.machineSelect.disabled = true;
+  if (el.authEmail) {
+    el.authEmail.value = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim();
+  }
+
   if (location.protocol === "file:") {
     setStatus("You opened frontend as file://. Browser will often block API calls (CORS). Open it with an http server.");
   }
 
   try {
-    await loadInitial();
-    await restoreSelectionAndAutoloadDashboard();
+    await loadAuthConfig();
+    const restored = await restoreAuthFromStorageAndRefreshIfNeeded();
+    if (restored) {
+      await bootstrapAuthenticatedApp();
+    } else {
+      setStatus("Sign in to continue.", true);
+      setAuthStatus("Not signed in");
+    }
   } catch (e) {
     setStatus(`Failed to initialize frontend: ${e.message}`);
+    setAuthStatus(`Initialization failed: ${e.message}`);
   }
+
+  syncBusyUi();
 }
 
 init();

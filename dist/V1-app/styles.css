@@ -76,6 +76,29 @@ body {
   min-width: 420px;
 }
 
+.auth-config {
+  display: grid;
+  gap: 6px;
+  min-width: 300px;
+}
+
+.auth-actions {
+  margin-top: 4px;
+}
+
+.auth-status {
+  margin: 0;
+  min-height: 20px;
+}
+
+.auth-status.ok {
+  color: #1a7f3a;
+}
+
+.auth-status.error {
+  color: #b7202e;
+}
+
 .card {
   padding: 14px;
 }

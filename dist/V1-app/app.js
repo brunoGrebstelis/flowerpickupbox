@@ -131,6 +131,12 @@ const state = {
     purchasesByDay: [],
     revenueByDay: [],
   },
+  stats: {
+    activeChart: "",
+    customFrom: "",
+    customTo: "",
+  },
+  colorPickerModalOpen: false,
 };
 
 const el = {
@@ -191,9 +197,132 @@ const el = {
   adminClimateStats: document.getElementById("adminClimateStats"),
   purchasesChart: document.getElementById("purchasesChart"),
   revenueChart: document.getElementById("revenueChart"),
+  chartGrid: document.getElementById("chartGrid"),
+  statsPeriodToggleBtn: document.getElementById("statsPeriodToggleBtn"),
+  statsPeriodPanel: document.getElementById("statsPeriodPanel"),
+  statsCustomRange: document.getElementById("statsCustomRange"),
+  statsCustomFrom: document.getElementById("statsCustomFrom"),
+  statsCustomTo: document.getElementById("statsCustomTo"),
   activityLogs: document.getElementById("activityLogs"),
   purchaseLogs: document.getElementById("purchaseLogs"),
 };
+
+function formatMonthYearLabel(dateObj = new Date()) {
+  return dateObj.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function updateStatsPeriodButtonLabel() {
+  if (!el.statsPeriodToggleBtn) return;
+  const mode = String(el.statsPeriodSelect?.value || "this_month");
+  if (mode === "this_month") {
+    el.statsPeriodToggleBtn.textContent = formatMonthYearLabel(new Date());
+    return;
+  }
+  if (mode === "last_month") {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    el.statsPeriodToggleBtn.textContent = formatMonthYearLabel(d);
+    return;
+  }
+  if (mode === "this_year") {
+    el.statsPeriodToggleBtn.textContent = String(new Date().getFullYear());
+    return;
+  }
+  if (mode === "all_time") {
+    el.statsPeriodToggleBtn.textContent = "Total";
+    return;
+  }
+  if (mode === "custom") {
+    const from = String(el.statsCustomFrom?.value || "");
+    const to = String(el.statsCustomTo?.value || "");
+    el.statsPeriodToggleBtn.textContent = from && to ? `${from} → ${to}` : "Custom range";
+    return;
+  }
+  el.statsPeriodToggleBtn.textContent = formatMonthYearLabel(new Date());
+}
+
+function setChartVisibility(mode = "") {
+  state.stats.activeChart = mode;
+  if (!el.chartGrid) return;
+  el.chartGrid.hidden = !mode;
+
+  if (el.purchasesChart) {
+    const card = el.purchasesChart.closest(".chart-card");
+    if (card) card.hidden = mode !== "purchases";
+  }
+  if (el.revenueChart) {
+    const card = el.revenueChart.closest(".chart-card");
+    if (card) card.hidden = mode !== "revenue";
+  }
+}
+
+function ensureColorPickerModal() {
+  let modal = document.getElementById("colorPickerModal");
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "colorPickerModal";
+  modal.className = "color-picker-modal";
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="color-picker-dialog" role="dialog" aria-modal="true" aria-label="Pick color">
+      <h3>Pick color</h3>
+      <input id="colorPickerModalInput" type="color" value="#ffffff" />
+      <div class="color-picker-actions">
+        <button id="colorPickerCancelBtn" class="btn" type="button">Cancel</button>
+        <button id="colorPickerOkBtn" class="btn btn-primary" type="button">Set</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const cancelBtn = modal.querySelector("#colorPickerCancelBtn");
+  const okBtn = modal.querySelector("#colorPickerOkBtn");
+  const input = modal.querySelector("#colorPickerModalInput");
+
+  const close = () => {
+    modal.hidden = true;
+    state.colorPickerModalOpen = false;
+  };
+
+  cancelBtn?.addEventListener("click", close);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+
+  okBtn?.addEventListener("click", () => {
+    const value = String(input?.value || "#000000").replace("#", "");
+    if (value.length !== 6) return close();
+    const r = parseInt(value.slice(0, 2), 16);
+    const g = parseInt(value.slice(2, 4), 16);
+    const b = parseInt(value.slice(4, 6), 16);
+    if (Number.isInteger(r) && Number.isInteger(g) && Number.isInteger(b)) {
+      el.colorR.value = String(r);
+      el.colorG.value = String(g);
+      el.colorB.value = String(b);
+      if (el.colorPicker) {
+        el.colorPicker.value = `#${value}`;
+      }
+    }
+    close();
+  });
+
+  return modal;
+}
+
+function openColorPickerModal() {
+  const modal = ensureColorPickerModal();
+  const input = modal.querySelector("#colorPickerModalInput");
+  const r = Number(el.colorR.value);
+  const g = Number(el.colorG.value);
+  const b = Number(el.colorB.value);
+  const currentHex = [r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
+    ? `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`
+    : (el.colorPicker?.value || "#ffffff");
+  if (input) input.value = currentHex;
+  modal.hidden = false;
+  state.colorPickerModalOpen = true;
+}
 
 function getSignedInUserLabel() {
   const selected = state.users.find((u) => Number(u.user_id) === Number(state.selectedUserId));
@@ -247,11 +376,7 @@ function updateTopMachineStrip() {
   }
 
   if (el.topHeartbeatText) {
-    if (!beatDate) {
-      el.topHeartbeatText.textContent = "Unknown";
-    } else {
-      el.topHeartbeatText.textContent = `${isFresh ? "Online" : "Stale"} • ${toLocalTime(beatDate.toISOString())}`;
-    }
+    el.topHeartbeatText.textContent = "";
   }
 }
 
@@ -380,10 +505,28 @@ function dateFilterForPeriod(period) {
   if (period === "all_time") return () => true;
 
   let start = null;
+  let end = now;
   if (period === "last_7_days") {
     start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  } else if (period === "last_month") {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
   } else if (period === "last_30_days") {
     start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  } else if (period === "this_year") {
+    start = new Date(now.getFullYear(), 0, 1);
+  } else if (period === "custom") {
+    const fromRaw = String(el.statsCustomFrom?.value || "").trim();
+    const toRaw = String(el.statsCustomTo?.value || "").trim();
+    const fromDate = fromRaw ? new Date(`${fromRaw}T00:00:00`) : null;
+    const toDate = toRaw ? new Date(`${toRaw}T23:59:59`) : null;
+    return (value) => {
+      const dt = parseDateMaybe(value);
+      if (!dt) return false;
+      if (fromDate && dt < fromDate) return false;
+      if (toDate && dt > toDate) return false;
+      return true;
+    };
   } else {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
   }
@@ -391,11 +534,13 @@ function dateFilterForPeriod(period) {
   return (value) => {
     const dt = parseDateMaybe(value);
     if (!dt) return false;
-    return dt >= start && dt <= now;
+    return dt >= start && dt <= end;
   };
 }
 
 function applyAdminStatsView() {
+  updateStatsPeriodButtonLabel();
+
   const period = (el.statsPeriodSelect?.value || "this_month");
   const inPeriod = dateFilterForPeriod(period);
 
@@ -404,10 +549,35 @@ function applyAdminStatsView() {
 
   const totalRevenue = purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-  renderInfoList(el.adminStats, buildInfoEntriesFromObject({
-    purchases: purchases.length,
-    revenue_eur: Number(totalRevenue.toFixed(2)),
-  }));
+  if (el.adminStats) {
+    el.adminStats.innerHTML = "";
+    const rows = [
+      {
+        key: "purchases",
+        label: "Purchases",
+        value: String(purchases.length),
+        chartMode: "purchases",
+      },
+      {
+        key: "revenue_eur",
+        label: "Revenue Eur",
+        value: Number(totalRevenue.toFixed(2)).toFixed(2),
+        chartMode: "revenue",
+      },
+    ];
+
+    rows.forEach((rowDef) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "stats-row-button";
+      row.innerHTML = `<div class="info-item"><div class="info-label">${rowDef.label}</div><div class="info-value">${rowDef.value}</div></div>`;
+      row.addEventListener("click", () => {
+        const next = state.stats.activeChart === rowDef.chartMode ? "" : rowDef.chartMode;
+        setChartVisibility(next);
+      });
+      el.adminStats.appendChild(row);
+    });
+  }
 
   const temps = climate.map((c) => Number(c.temperature)).filter(Number.isFinite);
   const hums = climate.map((c) => Number(c.humidity)).filter(Number.isFinite);
@@ -426,10 +596,10 @@ function applyAdminStatsView() {
   }), "No climate data for selected period.");
 
   const purchasesSeries = bucketByDate(purchases, () => 1);
-  const purchasesMeta = drawSimpleBars(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "#4c7dd9", "");
+  const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Purchases");
 
   const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0));
-  const revenueMeta = drawSimpleBars(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
+  const revenueMeta = drawSimplePie(el.revenueChart, revenueSeries.labels, revenueSeries.values, "Revenue");
 
   state.chartMeta.purchasesByDay = purchasesSeries.keys;
   state.chartMeta.revenueByDay = revenueSeries.keys;
@@ -447,6 +617,75 @@ function applyAdminStatsView() {
     revenueSeries.keys,
     (dayKey) => setPurchaseLogsByDay(dayKey)
   );
+}
+
+function drawSimplePie(canvas, labels, values, title = "") {
+  if (!canvas || !canvas.getContext) return { slices: [] };
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { slices: [] };
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(280, Math.floor(rect.width || 320));
+  const height = Math.max(170, Math.floor(canvas.height || 170));
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const total = values.reduce((a, b) => a + Math.max(0, Number(b) || 0), 0);
+  const cx = 90;
+  const cy = Math.floor(height / 2);
+  const radius = 56;
+  const palette = ["#3f7edb", "#2ba56a", "#f29c3a", "#8b6de6", "#e05656", "#17a2b8", "#6c757d", "#f4c430", "#a05d56", "#20c997"];
+
+  const slices = [];
+  let angle = -Math.PI / 2;
+  if (total <= 0) {
+    ctx.fillStyle = "#e8edf7";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#54637e";
+    ctx.font = "12px Segoe UI";
+    ctx.fillText("No data", cx - 18, cy + 4);
+    return { slices: [] };
+  }
+
+  values.forEach((raw, idx) => {
+    const v = Math.max(0, Number(raw) || 0);
+    const share = v / total;
+    const next = angle + share * Math.PI * 2;
+    const color = palette[idx % palette.length];
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, angle, next);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    slices.push({ idx, start: angle, end: next, value: v, label: labels[idx] || "-" });
+    angle = next;
+  });
+
+  ctx.fillStyle = "#1f2d46";
+  ctx.font = "12px Segoe UI";
+  ctx.fillText(title, 18, 16);
+
+  const legendX = 170;
+  let legendY = 28;
+  slices.slice(0, 6).forEach((slice, i) => {
+    const color = palette[slice.idx % palette.length];
+    ctx.fillStyle = color;
+    ctx.fillRect(legendX, legendY + i * 22, 10, 10);
+    ctx.fillStyle = "#2a3f63";
+    const pct = ((slice.value / total) * 100).toFixed(0);
+    const txt = `${slice.label}: ${pct}%`;
+    ctx.fillText(txt.slice(0, 22), legendX + 14, legendY + 9 + i * 22);
+  });
+
+  return { slices, cx, cy, radius };
 }
 
 function setAuthStatus(message, ok = false) {
@@ -707,6 +946,10 @@ function syncBusyUi() {
 
   if (el.statsPeriodSelect) {
     el.statsPeriodSelect.disabled = busy || !canUseApp || state.selectedRole !== "admin";
+  }
+
+  if (el.statsPeriodToggleBtn) {
+    el.statsPeriodToggleBtn.disabled = busy || !canUseApp || state.selectedRole !== "admin";
   }
 }
 
@@ -2642,7 +2885,7 @@ function wireEvents() {
 
   if (el.pickColorBtn && el.colorPicker) {
     el.pickColorBtn.addEventListener("click", () => {
-      el.colorPicker.click();
+      openColorPickerModal();
     });
 
     el.colorPicker.addEventListener("input", () => {
@@ -2679,8 +2922,29 @@ function wireEvents() {
     });
   }
 
+  if (el.statsPeriodToggleBtn && el.statsPeriodPanel) {
+    el.statsPeriodToggleBtn.addEventListener("click", () => {
+      el.statsPeriodPanel.hidden = !el.statsPeriodPanel.hidden;
+    });
+  }
+
   if (el.statsPeriodSelect) {
     el.statsPeriodSelect.addEventListener("change", () => {
+      if (el.statsCustomRange) {
+        el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
+      }
+      applyAdminStatsView();
+    });
+  }
+
+  if (el.statsCustomFrom) {
+    el.statsCustomFrom.addEventListener("change", () => {
+      applyAdminStatsView();
+    });
+  }
+
+  if (el.statsCustomTo) {
+    el.statsCustomTo.addEventListener("change", () => {
       applyAdminStatsView();
     });
   }
@@ -2743,6 +3007,8 @@ async function init() {
   applyOpModeButtonState(false);
   setAuthLayoutVisible(false);
   syncCollapsibleUi();
+  updateStatsPeriodButtonLabel();
+  setChartVisibility("");
   updateTopMachineStrip();
   syncBusyUi();
   startAutoRefreshLoop();

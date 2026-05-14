@@ -211,6 +211,10 @@ body {
   width: 100%;
 }
 
+.machine-strip-opmode-wrap {
+  min-width: 220px;
+}
+
 .stats-period-panel {
   margin-top: 8px;
   display: grid;
@@ -223,6 +227,23 @@ body {
   font-size: 16px;
   font-weight: 700;
   color: #2a3f63;
+}
+
+.stats-period-title-btn {
+  width: auto;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #cfd8ec;
+  background: #f1f5ff;
+  color: #24426f;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.stats-period-title-btn:hover {
+  border-color: #a9bde7;
+  background: #e8f0ff;
 }
 
 .stats-custom-range {
@@ -287,6 +308,10 @@ body {
 .color-picker-dialog h3 {
   margin: 0;
   font-size: 16px;
+}
+
+.color-picker-dialog.simple-frame h3 {
+  display: none;
 }
 
 .color-picker-actions {
@@ -923,6 +948,16 @@ input.failed {
   .stats-period-panel select {
     width: 100%;
     max-width: 100%;
+  }
+
+  .stats-period-title-btn {
+    width: auto;
+    min-height: 44px;
+    font-size: 15px;
+    padding: 8px 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   h2 {

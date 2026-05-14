@@ -265,8 +265,8 @@ function ensureColorPickerModal() {
   modal.className = "color-picker-modal";
   modal.hidden = true;
   modal.innerHTML = `
-    <div class="color-picker-dialog" role="dialog" aria-modal="true" aria-label="Pick color">
-      <h3>Pick color</h3>
+    <div class="color-picker-dialog simple-frame" role="dialog" aria-modal="true" aria-label="Colors frame">
+      <h3>Colors frame</h3>
       <input id="colorPickerModalInput" type="color" value="#ffffff" />
       <div class="color-picker-actions">
         <button id="colorPickerCancelBtn" class="btn" type="button">Cancel</button>
@@ -322,18 +322,6 @@ function openColorPickerModal() {
   if (input) input.value = currentHex;
   modal.hidden = false;
   state.colorPickerModalOpen = true;
-
-  if (input) {
-    try {
-      if (typeof input.showPicker === "function") {
-        input.showPicker();
-      } else {
-        input.click();
-      }
-    } catch {
-      // ignore platform limitations
-    }
-  }
 }
 
 function getSignedInUserLabel() {
@@ -357,6 +345,13 @@ function setAuthLayoutVisible(isAuthenticated) {
 
   if (el.signedInUser) {
     el.signedInUser.value = isAuthenticated ? getSignedInUserLabel() : "-";
+  }
+
+  if (isAuthenticated && state.selectedMachineId && el.machineStrip) {
+    const appShell = document.querySelector(".app-shell");
+    if (appShell && appShell.firstElementChild !== el.machineStrip) {
+      appShell.insertBefore(el.machineStrip, appShell.firstElementChild);
+    }
   }
 }
 
@@ -467,20 +462,143 @@ function drawSimpleBars(canvas, labels, values, color, suffix = "") {
   return { bars, width, height };
 }
 
-function bucketByDate(logs, valueSelector) {
+function drawSimpleLine(canvas, labels, values, color, suffix = "") {
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(320, Math.floor(rect.width || 320));
+  const height = Math.max(170, Math.floor(canvas.height || 170));
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  const padLeft = 38;
+  const padRight = 16;
+  const padTop = 18;
+  const padBottom = 30;
+  const chartW = Math.max(10, width - padLeft - padRight);
+  const chartH = Math.max(10, height - padTop - padBottom);
+
+  const nums = values.map((v) => Math.max(0, Number(v) || 0));
+  const maxValue = Math.max(1, ...nums);
+  const count = Math.max(1, nums.length);
+  const stepX = count > 1 ? chartW / (count - 1) : 0;
+
+  ctx.strokeStyle = "#d9e0ec";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padLeft, padTop);
+  ctx.lineTo(padLeft, padTop + chartH);
+  ctx.lineTo(padLeft + chartW, padTop + chartH);
+  ctx.stroke();
+
+  const points = nums.map((v, idx) => {
+    const x = padLeft + idx * stepX;
+    const y = padTop + chartH - (v / maxValue) * (chartH - 8);
+    return { x, y, value: v, index: idx };
+  });
+
+  if (points.length > 1) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+  }
+
+  points.forEach((p, idx) => {
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (idx % Math.ceil(points.length / 6) === 0 || idx === points.length - 1) {
+      const label = String(labels[idx] || "").slice(0, 10);
+      ctx.fillStyle = "#60708d";
+      ctx.font = "11px Segoe UI";
+      ctx.textAlign = "center";
+      ctx.fillText(label, p.x, padTop + chartH + 14);
+    }
+  });
+
+  const hit = points.map((p) => ({
+    x: p.x - 8,
+    y: p.y - 8,
+    width: 16,
+    height: 16,
+    index: p.index,
+  }));
+
+  return { bars: hit, width, height, points };
+}
+
+function bucketByDate(logs, valueSelector, options = {}) {
+  const mode = String(options.mode || "auto");
   const byDay = new Map();
+  const withDate = [];
   logs.forEach((item) => {
     const dt = parseDateMaybe(item.purchased_at || item.created_at || item.timestamp);
     if (!dt) return;
-    const key = dt.toISOString().slice(0, 10);
+    withDate.push({ item, dt });
+  });
+
+  if (!withDate.length) {
+    return { keys: [], labels: [], values: [] };
+  }
+
+  withDate.sort((a, b) => a.dt.getTime() - b.dt.getTime());
+  const minT = withDate[0].dt.getTime();
+  const maxT = withDate[withDate.length - 1].dt.getTime();
+  const spanMs = Math.max(1, maxT - minT);
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  let bucketType = "day";
+  if (mode === "line") {
+    if (spanMs <= 2 * oneDay) bucketType = "hour";
+    else if (spanMs <= 45 * oneDay) bucketType = "day";
+    else if (spanMs <= 400 * oneDay) bucketType = "week";
+    else bucketType = "month";
+  }
+
+  withDate.forEach(({ item, dt }) => {
+    let key = "";
+    if (bucketType === "hour") {
+      key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")} ${String(dt.getHours()).padStart(2, "0")}:00`;
+    } else if (bucketType === "week") {
+      const day = new Date(dt);
+      const dayOfWeek = (day.getDay() + 6) % 7;
+      day.setDate(day.getDate() - dayOfWeek);
+      key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    } else if (bucketType === "month") {
+      key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+    } else {
+      key = dt.toISOString().slice(0, 10);
+    }
     byDay.set(key, (byDay.get(key) || 0) + Number(valueSelector(item) || 0));
   });
 
   const entries = Array.from(byDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  const tail = entries.slice(-10);
+  const tail = mode === "line" ? entries.slice(-24) : entries.slice(-10);
+
+  const labels = tail.map(([k]) => {
+    if (bucketType === "hour") return k.slice(11, 16);
+    if (bucketType === "month") return k;
+    return k.slice(5);
+  });
+
   return {
     keys: tail.map(([k]) => k),
-    labels: tail.map(([k]) => k.slice(5)),
+    labels,
     values: tail.map(([, v]) => Number(v.toFixed ? v.toFixed(2) : v)),
   };
 }
@@ -606,11 +724,11 @@ function applyAdminStatsView() {
     max_humidity: Number(max(hums).toFixed(2)),
   }), "No climate data for selected period.");
 
-  const purchasesSeries = bucketByDate(purchases, () => 1);
+  const purchasesSeries = bucketByDate(purchases, () => 1, { mode: "day" });
   const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Purchases");
 
-  const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0));
-  const revenueMeta = drawSimpleBars(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
+  const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0), { mode: "line" });
+  const revenueMeta = drawSimpleLine(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
 
   state.chartMeta.purchasesByDay = purchasesSeries.keys;
   state.chartMeta.revenueByDay = revenueSeries.keys;
@@ -663,8 +781,12 @@ function drawSimplePie(canvas, labels, values, title = "") {
     return { slices: [] };
   }
 
-  values.forEach((raw, idx) => {
-    const v = Math.max(0, Number(raw) || 0);
+  const zipped = values
+    .map((v, i) => ({ label: labels[i] || "-", value: Math.max(0, Number(v) || 0), idx: i }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  zipped.forEach((entry, idx) => {
+    const v = entry.value;
     const share = v / total;
     const next = angle + share * Math.PI * 2;
     const color = palette[idx % palette.length];
@@ -676,7 +798,7 @@ function drawSimplePie(canvas, labels, values, title = "") {
     ctx.fillStyle = color;
     ctx.fill();
 
-    slices.push({ idx, start: angle, end: next, value: v, label: labels[idx] || "-" });
+    slices.push({ idx, start: angle, end: next, value: v, label: entry.label || "-" });
     angle = next;
   });
 
@@ -1612,7 +1734,7 @@ function applyOpModeButtonState(opModeValue) {
   el.toggleOpModeBtn.classList.add(state.opModeValue ? "on" : "off");
   el.toggleOpModeBtn.classList.toggle("pending", hasPendingControl("opMode"));
   el.toggleOpModeBtn.classList.toggle("failed", hasFailedControl("opMode"));
-  el.toggleOpModeBtn.textContent = `Operation mode: ${state.opModeValue ? "ON" : "OFF"}`;
+  el.toggleOpModeBtn.textContent = state.opModeValue ? "ON" : "OFF";
 }
 
 function renderLightingModes() {
@@ -2392,6 +2514,14 @@ function onMachineSelected() {
   const selected = state.allowedMachines.find((x) => x.machine.machine_id === state.selectedMachineId);
   state.selectedCompanyId = selected ? selected.companyId : null;
   state.selectedRole = selected ? selected.role : null;
+
+  if (state.selectedMachineId && el.machineStrip) {
+    const appShell = document.querySelector(".app-shell");
+    if (appShell && appShell.firstElementChild !== el.machineStrip) {
+      appShell.insertBefore(el.machineStrip, appShell.firstElementChild);
+    }
+  }
+
   persistSelection();
 }
 

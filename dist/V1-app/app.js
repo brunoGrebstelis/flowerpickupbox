@@ -2462,7 +2462,17 @@ async function init() {
     await loadAuthConfig();
     const restored = await restoreAuthFromStorageAndRefreshIfNeeded();
     if (restored) {
-      await bootstrapAuthenticatedApp();
+      try {
+        await bootstrapAuthenticatedApp();
+      } catch (e) {
+        // Stored token can be invalid/expired or rejected by authorizer.
+        // Fall back to clean signed-out state instead of hard init failure.
+        clearAuthStorage();
+        resetAuthState();
+        setNewPasswordChallengeVisible(false);
+        setStatus("Stored session is invalid. Please sign in again.");
+        setAuthStatus(`Session reset: ${e.message}`);
+      }
     } else {
       setStatus("Sign in to continue.", true);
       setAuthStatus("Not signed in");

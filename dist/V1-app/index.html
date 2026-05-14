@@ -28,6 +28,13 @@
           <button id="signInBtn" class="btn btn-primary" type="button">Sign in</button>
           <button id="signOutBtn" class="btn" type="button">Sign out</button>
         </div>
+        <div id="newPasswordBlock" class="auth-challenge" hidden>
+          <label for="newPassword">New password</label>
+          <input id="newPassword" type="password" autocomplete="new-password" placeholder="New password" />
+          <label for="newPasswordConfirm">Repeat new password</label>
+          <input id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repeat new password" />
+          <button id="setNewPasswordBtn" class="btn btn-primary" type="button">Set new password</button>
+        </div>
         <p id="authStatus" class="subtle auth-status">Not signed in</p>
       </div>
     </header>

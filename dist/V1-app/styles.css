@@ -91,6 +91,16 @@ body {
   min-height: 20px;
 }
 
+.auth-challenge {
+  display: none;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.auth-challenge.show {
+  display: grid;
+}
+
 .auth-status.ok {
   color: #1a7f3a;
 }

@@ -82,6 +82,7 @@ const state = {
     refreshToken: "",
     expiresAt: 0,
     email: "",
+    pendingChallenge: null,
   },
   users: [],
   machines: [],
@@ -125,6 +126,10 @@ const el = {
   authPassword: document.getElementById("authPassword"),
   signInBtn: document.getElementById("signInBtn"),
   signOutBtn: document.getElementById("signOutBtn"),
+  newPasswordBlock: document.getElementById("newPasswordBlock"),
+  newPassword: document.getElementById("newPassword"),
+  newPasswordConfirm: document.getElementById("newPasswordConfirm"),
+  setNewPasswordBtn: document.getElementById("setNewPasswordBtn"),
   authStatus: document.getElementById("authStatus"),
   userSelect: document.getElementById("userSelect"),
   machineSelect: document.getElementById("machineSelect"),
@@ -215,6 +220,18 @@ function resetAuthState() {
   state.auth.refreshToken = "";
   state.auth.expiresAt = 0;
   state.auth.email = "";
+  state.auth.pendingChallenge = null;
+}
+
+function setNewPasswordChallengeVisible(visible) {
+  if (!el.newPasswordBlock) return;
+  el.newPasswordBlock.hidden = !visible;
+  el.newPasswordBlock.classList.toggle("show", visible);
+
+  if (!visible) {
+    if (el.newPassword) el.newPassword.value = "";
+    if (el.newPasswordConfirm) el.newPasswordConfirm.value = "";
+  }
 }
 
 function cognitoEndpoint() {
@@ -261,6 +278,14 @@ async function signInWithCognito(email, password) {
   );
 
   if (data?.ChallengeName) {
+    if (String(data.ChallengeName) === "NEW_PASSWORD_REQUIRED") {
+      const username = String(data?.ChallengeParameters?.USER_ID_FOR_SRP || data?.ChallengeParameters?.USERNAME || email || "").trim();
+      return {
+        challengeName: "NEW_PASSWORD_REQUIRED",
+        session: String(data?.Session || ""),
+        username,
+      };
+    }
     throw new Error(`Cognito challenge not supported in this frontend: ${data.ChallengeName}`);
   }
 
@@ -270,6 +295,25 @@ async function signInWithCognito(email, password) {
 
   rememberAuth(data.AuthenticationResult, email);
   state.auth.isAuthenticated = true;
+  state.auth.pendingChallenge = null;
+  return { challengeName: null };
+}
+
+async function respondToNewPasswordChallenge(challenge, newPassword) {
+  const payload = {
+    ClientId: state.authConfig.appClientId,
+    ChallengeName: "NEW_PASSWORD_REQUIRED",
+    Session: challenge?.session || "",
+    ChallengeResponses: {
+      USERNAME: String(challenge?.username || challenge?.email || "").trim(),
+      NEW_PASSWORD: newPassword,
+    },
+  };
+
+  return cognitoRequest(
+    "AWSCognitoIdentityProviderService.RespondToAuthChallenge",
+    payload
+  );
 }
 
 async function refreshCognitoSession() {
@@ -355,6 +399,10 @@ function syncBusyUi() {
   }
   if (el.signOutBtn) {
     el.signOutBtn.disabled = !canUseApp;
+  }
+  if (el.setNewPasswordBtn) {
+    const hasChallenge = Boolean(state.auth.pendingChallenge && state.auth.pendingChallenge.challengeName === "NEW_PASSWORD_REQUIRED");
+    el.setNewPasswordBtn.disabled = busy || !hasChallenge || canUseApp;
   }
 
   const dynamicButtons = [
@@ -1637,16 +1685,67 @@ async function handleSignIn() {
   }
 
   setAuthStatus("Signing in...", true);
-  await signInWithCognito(email, password);
+  const signInResult = await signInWithCognito(email, password);
+  if (signInResult?.challengeName === "NEW_PASSWORD_REQUIRED") {
+    state.auth.pendingChallenge = {
+      challengeName: "NEW_PASSWORD_REQUIRED",
+      session: signInResult.session || "",
+      username: signInResult.username || email,
+      email,
+    };
+    setNewPasswordChallengeVisible(true);
+    setAuthStatus("First sign-in requires password change. Enter a new password below.", false);
+    setStatus("First sign-in requires password change. Enter and confirm new password.", false);
+    syncBusyUi();
+    return;
+  }
+
+  setNewPasswordChallengeVisible(false);
   await bootstrapAuthenticatedApp();
   if (el.authPassword) {
     el.authPassword.value = "";
   }
 }
 
+async function handleSetNewPassword() {
+  const challenge = state.auth.pendingChallenge;
+  if (!challenge || challenge.challengeName !== "NEW_PASSWORD_REQUIRED") {
+    throw new Error("No pending password-change challenge.");
+  }
+
+  const newPassword = String(el.newPassword?.value || "");
+  const confirmPassword = String(el.newPasswordConfirm?.value || "");
+
+  if (!newPassword || !confirmPassword) {
+    throw new Error("Enter and confirm new password.");
+  }
+  if (newPassword !== confirmPassword) {
+    throw new Error("New password and confirmation do not match.");
+  }
+
+  setAuthStatus("Setting new password...", true);
+
+  const data = await respondToNewPasswordChallenge(challenge, newPassword);
+  if (!data?.AuthenticationResult?.IdToken) {
+    throw new Error("Cognito did not return IdToken after password change.");
+  }
+
+  rememberAuth(data.AuthenticationResult, challenge.email || (el.authEmail?.value || "").trim().toLowerCase());
+  state.auth.isAuthenticated = true;
+  state.auth.pendingChallenge = null;
+  setNewPasswordChallengeVisible(false);
+
+  if (el.authPassword) {
+    el.authPassword.value = "";
+  }
+
+  await bootstrapAuthenticatedApp();
+}
+
 function handleSignOut() {
   clearAuthStorage();
   resetAuthState();
+  setNewPasswordChallengeVisible(false);
 
   state.users = [];
   state.machines = [];
@@ -2299,6 +2398,16 @@ function wireEvents() {
     });
   }
 
+  if (el.setNewPasswordBtn) {
+    el.setNewPasswordBtn.addEventListener("click", () => {
+      handleSetNewPassword().catch((e) => {
+        setAuthStatus(`Set password failed: ${e.message}`);
+        setStatus(`Set password failed: ${e.message}`);
+        syncBusyUi();
+      });
+    });
+  }
+
   if (el.signOutBtn) {
     el.signOutBtn.addEventListener("click", handleSignOut);
   }
@@ -2310,6 +2419,18 @@ function wireEvents() {
       handleSignIn().catch((e) => {
         setAuthStatus(`Sign-in failed: ${e.message}`);
         setStatus(`Sign-in failed: ${e.message}`);
+        syncBusyUi();
+      });
+    });
+  }
+
+  if (el.newPasswordConfirm) {
+    el.newPasswordConfirm.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      handleSetNewPassword().catch((e) => {
+        setAuthStatus(`Set password failed: ${e.message}`);
+        setStatus(`Set password failed: ${e.message}`);
         syncBusyUi();
       });
     });
@@ -2331,6 +2452,7 @@ async function init() {
   if (el.authEmail) {
     el.authEmail.value = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim();
   }
+  setNewPasswordChallengeVisible(false);
 
   if (location.protocol === "file:") {
     setStatus("You opened frontend as file://. Browser will often block API calls (CORS). Open it with an http server.");

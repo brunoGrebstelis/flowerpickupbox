@@ -118,6 +118,19 @@ const state = {
     fan5: false,
     auto: true,
   },
+  ui: {
+    lightingCollapsed: true,
+    machineCommandsCollapsed: true,
+    climateCollapsed: true,
+  },
+  latestStatsRaw: {
+    purchases: [],
+    climate: [],
+  },
+  chartMeta: {
+    purchasesByDay: [],
+    revenueByDay: [],
+  },
 };
 
 const el = {
@@ -131,6 +144,10 @@ const el = {
   newPasswordConfirm: document.getElementById("newPasswordConfirm"),
   setNewPasswordBtn: document.getElementById("setNewPasswordBtn"),
   authStatus: document.getElementById("authStatus"),
+  signInCard: document.getElementById("signInCard"),
+  sessionCard: document.getElementById("sessionCard"),
+  machineStrip: document.getElementById("machineStrip"),
+  signedInUser: document.getElementById("signedInUser"),
   userSelect: document.getElementById("userSelect"),
   machineSelect: document.getElementById("machineSelect"),
   loadBtn: document.getElementById("loadBtn"),
@@ -150,17 +167,287 @@ const el = {
   setPriceBtn: document.getElementById("setPriceBtn"),
   setColorBtn: document.getElementById("setColorBtn"),
   setColorAllBtn: document.getElementById("setColorAllBtn"),
+  pickColorBtn: document.getElementById("pickColorBtn"),
+  colorPicker: document.getElementById("colorPicker"),
+  lightingModesBlock: document.getElementById("lightingModesBlock"),
+  lightingToggleBtn: document.getElementById("lightingToggleBtn"),
+  lightingModesContent: document.getElementById("lightingModesContent"),
   setTemp: document.getElementById("setTemp"),
   setTempBtn: document.getElementById("setTempBtn"),
   fanButtons: document.getElementById("fanButtons"),
   headlightButtons: document.getElementById("headlightButtons"),
   toggleOpModeBtn: document.getElementById("toggleOpModeBtn"),
-  rebootRpiBtn: document.getElementById("rebootRpiBtn"),
-  rebootStmBtn: document.getElementById("rebootStmBtn"),
+  machineCommandsBlock: document.getElementById("machineCommandsBlock"),
+  machineCommandsToggleBtn: document.getElementById("machineCommandsToggleBtn"),
+  machineCommandsContent: document.getElementById("machineCommandsContent"),
+  topCurrentTemperature: document.getElementById("topCurrentTemperature"),
+  topHeartbeatDot: document.getElementById("topHeartbeatDot"),
+  topHeartbeatText: document.getElementById("topHeartbeatText"),
   adminStats: document.getElementById("adminStats"),
+  adminStatsDetails: document.getElementById("adminStatsDetails"),
+  statsPeriodSelect: document.getElementById("statsPeriodSelect"),
+  toggleClimateDetailsBtn: document.getElementById("toggleClimateDetailsBtn"),
+  climateDetailsContent: document.getElementById("climateDetailsContent"),
+  adminClimateStats: document.getElementById("adminClimateStats"),
+  purchasesChart: document.getElementById("purchasesChart"),
+  revenueChart: document.getElementById("revenueChart"),
   activityLogs: document.getElementById("activityLogs"),
   purchaseLogs: document.getElementById("purchaseLogs"),
 };
+
+function getSignedInUserLabel() {
+  const selected = state.users.find((u) => Number(u.user_id) === Number(state.selectedUserId));
+  if (!selected) return state.auth.email || "-";
+  return [selected.name, selected.surname].map((x) => String(x || "").trim()).filter(Boolean).join(" ") || state.auth.email || "-";
+}
+
+function setAuthLayoutVisible(isAuthenticated) {
+  if (el.signInCard) {
+    el.signInCard.hidden = isAuthenticated;
+  }
+  if (el.sessionCard) {
+    el.sessionCard.hidden = !isAuthenticated;
+  }
+
+  const authOnlyBlocks = Array.from(document.querySelectorAll(".auth-only"));
+  authOnlyBlocks.forEach((node) => {
+    node.hidden = !isAuthenticated;
+  });
+
+  if (el.signedInUser) {
+    el.signedInUser.value = isAuthenticated ? getSignedInUserLabel() : "-";
+  }
+}
+
+function parseDateMaybe(value) {
+  if (!value) return null;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function updateTopMachineStrip() {
+  const status = state.machineStatus;
+  const rawTemp = status ? Number(status.current_temperature) : NaN;
+  if (el.topCurrentTemperature) {
+    el.topCurrentTemperature.textContent = Number.isFinite(rawTemp)
+      ? `${rawTemp.toFixed(1)} °C`
+      : "-";
+  }
+
+  const beatValue = status ? (status.last_heartbeat || status.updated_at) : null;
+  const beatDate = parseDateMaybe(beatValue);
+  const now = Date.now();
+  const maxDelayMs = 10 * 60 * 1000;
+  const isFresh = Boolean(beatDate && (now - beatDate.getTime()) <= maxDelayMs);
+
+  if (el.topHeartbeatDot) {
+    el.topHeartbeatDot.classList.remove("heartbeat-ok", "heartbeat-bad", "heartbeat-unknown");
+    el.topHeartbeatDot.classList.add(beatDate ? (isFresh ? "heartbeat-ok" : "heartbeat-bad") : "heartbeat-unknown");
+  }
+
+  if (el.topHeartbeatText) {
+    if (!beatDate) {
+      el.topHeartbeatText.textContent = "Unknown";
+    } else {
+      el.topHeartbeatText.textContent = `${isFresh ? "Online" : "Stale"} • ${toLocalTime(beatDate.toISOString())}`;
+    }
+  }
+}
+
+function setCollapseState(blockEl, contentEl, collapsed) {
+  if (!blockEl || !contentEl) return;
+  blockEl.classList.toggle("collapsed", collapsed);
+  contentEl.hidden = collapsed;
+}
+
+function syncCollapsibleUi() {
+  setCollapseState(el.lightingModesBlock, el.lightingModesContent, state.ui.lightingCollapsed);
+  setCollapseState(el.machineCommandsBlock, el.machineCommandsContent, state.ui.machineCommandsCollapsed);
+  setCollapseState(el.adminStatsDetails, el.climateDetailsContent, state.ui.climateCollapsed);
+}
+
+function normalizeLockerLabel(lockerNumberOrId) {
+  if (lockerNumberOrId === null || lockerNumberOrId === undefined || lockerNumberOrId === "") return "-";
+  return `Locker ${lockerNumberOrId}`;
+}
+
+function drawSimpleBars(canvas, labels, values, color, suffix = "") {
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(320, Math.floor(rect.width || 320));
+  const height = Math.max(150, Math.floor(canvas.height || 150));
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  const pad = 28;
+  const chartW = width - pad * 2;
+  const chartH = height - pad * 2;
+
+  const maxValue = Math.max(1, ...values.map((v) => Number(v) || 0));
+  const barCount = Math.max(1, values.length);
+  const gap = 10;
+  const barW = Math.max(10, (chartW - gap * (barCount - 1)) / barCount);
+
+  ctx.strokeStyle = "#d9e0ec";
+  ctx.beginPath();
+  ctx.moveTo(pad, pad);
+  ctx.lineTo(pad, pad + chartH);
+  ctx.lineTo(pad + chartW, pad + chartH);
+  ctx.stroke();
+
+  const bars = [];
+  values.forEach((raw, idx) => {
+    const v = Math.max(0, Number(raw) || 0);
+    const h = (v / maxValue) * (chartH - 8);
+    const x = pad + idx * (barW + gap);
+    const y = pad + chartH - h;
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, barW, h);
+
+    ctx.fillStyle = "#1f2d46";
+    ctx.font = "11px Segoe UI";
+    ctx.textAlign = "center";
+    ctx.fillText(`${v}${suffix}`, x + barW / 2, y - 4);
+
+    const label = String(labels[idx] || "").slice(0, 8);
+    ctx.fillStyle = "#60708d";
+    ctx.fillText(label, x + barW / 2, pad + chartH + 14);
+
+    bars.push({ x, y, width: barW, height: h, index: idx });
+  });
+
+  return { bars, width, height };
+}
+
+function bucketByDate(logs, valueSelector) {
+  const byDay = new Map();
+  logs.forEach((item) => {
+    const dt = parseDateMaybe(item.purchased_at || item.created_at || item.timestamp);
+    if (!dt) return;
+    const key = dt.toISOString().slice(0, 10);
+    byDay.set(key, (byDay.get(key) || 0) + Number(valueSelector(item) || 0));
+  });
+
+  const entries = Array.from(byDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const tail = entries.slice(-10);
+  return {
+    keys: tail.map(([k]) => k),
+    labels: tail.map(([k]) => k.slice(5)),
+    values: tail.map(([, v]) => Number(v.toFixed ? v.toFixed(2) : v)),
+  };
+}
+
+function setPurchaseLogsByDay(dayKey) {
+  const all = state.latestStatsRaw.purchases || [];
+  const filtered = all.filter((p) => {
+    const dt = parseDateMaybe(p.purchased_at || p.created_at);
+    return dt && dt.toISOString().slice(0, 10) === dayKey;
+  });
+  renderPurchaseLogs(filtered);
+  setStatus(`Showing ${filtered.length} purchases for ${dayKey}.`, true);
+}
+
+function bindCanvasPointClicks(canvas, barsMeta, dayKeys, onPick) {
+  if (!canvas || !Array.isArray(barsMeta) || !dayKeys?.length) return;
+  canvas.onclick = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    const picked = barsMeta.find((bar) => {
+      return x >= bar.x && x <= (bar.x + bar.width) && y >= bar.y && y <= (bar.y + bar.height);
+    });
+    if (!picked) return;
+    const dayKey = dayKeys[picked.index];
+    if (!dayKey) return;
+    onPick(dayKey);
+  };
+}
+
+function dateFilterForPeriod(period) {
+  const now = new Date();
+  if (period === "all_time") return () => true;
+
+  let start = null;
+  if (period === "last_7_days") {
+    start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  } else if (period === "last_30_days") {
+    start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  } else {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  return (value) => {
+    const dt = parseDateMaybe(value);
+    if (!dt) return false;
+    return dt >= start && dt <= now;
+  };
+}
+
+function applyAdminStatsView() {
+  const period = (el.statsPeriodSelect?.value || "this_month");
+  const inPeriod = dateFilterForPeriod(period);
+
+  const purchases = (state.latestStatsRaw.purchases || []).filter((x) => inPeriod(x.purchased_at || x.created_at));
+  const climate = (state.latestStatsRaw.climate || []).filter((x) => inPeriod(x.recorded_at || x.created_at));
+
+  const totalRevenue = purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  renderInfoList(el.adminStats, buildInfoEntriesFromObject({
+    purchases: purchases.length,
+    revenue_eur: Number(totalRevenue.toFixed(2)),
+  }));
+
+  const temps = climate.map((c) => Number(c.temperature)).filter(Number.isFinite);
+  const hums = climate.map((c) => Number(c.humidity)).filter(Number.isFinite);
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+  const min = (arr) => (arr.length ? Math.min(...arr) : 0);
+  const max = (arr) => (arr.length ? Math.max(...arr) : 0);
+
+  renderInfoList(el.adminClimateStats, buildInfoEntriesFromObject({
+    climate_logs: climate.length,
+    avg_temperature: Number(avg(temps).toFixed(2)),
+    min_temperature: Number(min(temps).toFixed(2)),
+    max_temperature: Number(max(temps).toFixed(2)),
+    avg_humidity: Number(avg(hums).toFixed(2)),
+    min_humidity: Number(min(hums).toFixed(2)),
+    max_humidity: Number(max(hums).toFixed(2)),
+  }), "No climate data for selected period.");
+
+  const purchasesSeries = bucketByDate(purchases, () => 1);
+  const purchasesMeta = drawSimpleBars(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "#4c7dd9", "");
+
+  const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0));
+  const revenueMeta = drawSimpleBars(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
+
+  state.chartMeta.purchasesByDay = purchasesSeries.keys;
+  state.chartMeta.revenueByDay = revenueSeries.keys;
+
+  bindCanvasPointClicks(
+    el.purchasesChart,
+    purchasesMeta?.bars || [],
+    purchasesSeries.keys,
+    (dayKey) => setPurchaseLogsByDay(dayKey)
+  );
+
+  bindCanvasPointClicks(
+    el.revenueChart,
+    revenueMeta?.bars || [],
+    revenueSeries.keys,
+    (dayKey) => setPurchaseLogsByDay(dayKey)
+  );
+}
 
 function setAuthStatus(message, ok = false) {
   if (!el.authStatus) return;
@@ -375,10 +662,12 @@ function syncBusyUi() {
     el.setPriceBtn,
     el.setColorBtn,
     el.setColorAllBtn,
+    el.pickColorBtn,
     el.setTempBtn,
     el.toggleOpModeBtn,
-    el.rebootRpiBtn,
-    el.rebootStmBtn,
+    el.lightingToggleBtn,
+    el.machineCommandsToggleBtn,
+    el.toggleClimateDetailsBtn,
   ];
 
   staticButtons
@@ -415,6 +704,10 @@ function syncBusyUi() {
   dynamicButtons.forEach((button) => {
     button.disabled = busy || !canUseApp;
   });
+
+  if (el.statsPeriodSelect) {
+    el.statsPeriodSelect.disabled = busy || !canUseApp || state.selectedRole !== "admin";
+  }
 }
 
 function toDisplay(v) {
@@ -839,6 +1132,17 @@ function getUserDisplayName(userId) {
   return parts.length ? parts.join(" ") : `User #${numericUserId}`;
 }
 
+function splitDisplayName(name) {
+  const clean = String(name || "").trim();
+  if (!clean) return { first: "System", last: "" };
+  const chunks = clean.split(/\s+/);
+  if (chunks.length === 1) return { first: chunks[0], last: "" };
+  return {
+    first: chunks.slice(0, -1).join(" "),
+    last: chunks[chunks.length - 1],
+  };
+}
+
 function formatCommandValue(value) {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "boolean") return value ? "ON" : "OFF";
@@ -992,7 +1296,9 @@ function renderActivityLogs(logs) {
 
     const whoCell = document.createElement("td");
     const userId = activityData.user_id ?? log.user_id;
-    whoCell.textContent = getUserDisplayName(userId);
+    const displayName = getUserDisplayName(userId);
+    const nameParts = splitDisplayName(displayName);
+    whoCell.innerHTML = `<span class="who-name"><span class="who-first">${nameParts.first || ""}</span><span class="who-last">${nameParts.last || ""}</span></span>`;
 
     const whenCell = document.createElement("td");
     whenCell.textContent = toLocalTime(log.created_at || activityData.reported_at || activityData.accepted_at);
@@ -1027,7 +1333,7 @@ function renderPurchaseLogs(logs) {
 
     const lockerCell = document.createElement("td");
     const lockerNumber = purchase.locker_number ?? purchase.locker_id;
-    lockerCell.textContent = lockerNumber ? `#${lockerNumber}` : "-";
+    lockerCell.textContent = normalizeLockerLabel(lockerNumber);
 
     const priceCell = document.createElement("td");
     const amount = Number(purchase.amount);
@@ -1236,10 +1542,8 @@ function persistSelection() {
 }
 
 function resetDashboard() {
-  renderInfoList(el.userInfo, [], "Select a user and machine.");
-  renderInfoList(el.machineInfo, [], "-");
-  renderInfoList(el.machineStatus, [], "-");
   renderInfoList(el.adminStats, [], "Only shown for admin users.");
+  renderInfoList(el.adminClimateStats, [], "-");
   renderActivityLogs([]);
   renderPurchaseLogs([]);
   el.lockerGrid.innerHTML = "";
@@ -1256,6 +1560,7 @@ function resetDashboard() {
   setSelectedLockerText();
   syncSelectedLockerFormFields();
   syncControlModesFromStatusAndLocker();
+  updateTopMachineStrip();
   syncBusyUi();
 }
 
@@ -1359,6 +1664,10 @@ function populateUsers() {
     option.textContent = `${user.name} ${user.surname} (${user.email})`;
     el.userSelect.appendChild(option);
   });
+
+  if (el.signedInUser) {
+    el.signedInUser.value = state.auth.isAuthenticated ? getSignedInUserLabel() : "-";
+  }
 }
 
 function populateMachines() {
@@ -1669,6 +1978,11 @@ async function bootstrapAuthenticatedApp() {
   await restoreMachineSelectionAndAutoloadDashboard();
 
   state.auth.isAuthenticated = true;
+  setAuthLayoutVisible(true);
+  state.ui.lightingCollapsed = true;
+  state.ui.machineCommandsCollapsed = true;
+  state.ui.climateCollapsed = true;
+  syncCollapsibleUi();
   setAuthStatus(`Signed in as ${authUserEmail || `user #${authUserId}`}.`, true);
   syncBusyUi();
 }
@@ -1765,6 +2079,7 @@ function handleSignOut() {
   localStorage.removeItem(STORAGE_KEYS.selectedMachineId);
 
   resetDashboard();
+  setAuthLayoutVisible(false);
   setAuthStatus("Signed out.", true);
   setStatus("Sign in to continue.", true);
   syncBusyUi();
@@ -1902,64 +2217,14 @@ async function loadDashboard(options = {}) {
     state.selectedLockerId = state.lockers.length ? state.lockers[0].locker_id : null;
   }
 
-  const userInfo = {
-    user_id: user.user_id,
-    name: user.name,
-    surname: user.surname,
-    email: user.email,
-    is_active: user.is_active,
-    role: state.selectedRole,
-    company_id: state.selectedCompanyId,
-  };
-
-  renderInfoList(
-    el.userInfo,
-    buildInfoEntriesFromObject(userInfo, ["name", "surname", "email", "is_active", "role", "company_id", "user_id"]),
-    "Select a user and machine."
-  );
-
-  renderInfoList(
-    el.machineInfo,
-    buildInfoEntriesFromObject(machine, [
-      "machine_code",
-      "machine_name",
-      "country",
-      "city",
-      "address",
-      "locker_amount",
-      "software_version",
-      "hardware_version",
-      "machine_id",
-      "company_id",
-    ]),
-    "No machine data found."
-  );
-
-  renderInfoList(
-    el.machineStatus,
-    status
-      ? buildInfoEntriesFromObject(status, [
-        "current_temperature",
-        "current_humidity",
-        "set_temperature",
-        "fan_mode",
-        "head_lights",
-        "op_mode",
-        "water_status",
-        "internet_connected",
-        "rpi_alive",
-        "stm32_alive",
-        "last_heartbeat",
-        "updated_at",
-      ])
-      : [],
-    "No machine status found."
-  );
+  const _unusedUser = user;
+  const _unusedMachine = machine;
 
   renderActivityLogs(activityLogs || []);
   renderPurchaseLogs(purchaseLogs || []);
   renderLockers();
   syncControlModesFromStatusAndLocker();
+  updateTopMachineStrip();
   setSelectedLockerText();
   syncSelectedLockerFormFields();
   await processPendingVerifications();
@@ -1981,27 +2246,14 @@ async function loadAdminStats(machineId) {
     api(`/climate_logs?machine_id=${machineId}&limit=500`).catch(() => []),
   ]);
 
-  const totalRevenue = purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const avgPurchase = purchases.length ? totalRevenue / purchases.length : 0;
-  const temps = climate.map((c) => Number(c.temperature)).filter(Number.isFinite);
-  const hums = climate.map((c) => Number(c.humidity)).filter(Number.isFinite);
+  state.latestStatsRaw.purchases = purchases;
+  state.latestStatsRaw.climate = climate;
 
-  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
-  const min = (arr) => (arr.length ? Math.min(...arr) : 0);
-  const max = (arr) => (arr.length ? Math.max(...arr) : 0);
-
-  renderInfoList(el.adminStats, buildInfoEntriesFromObject({
-    total_purchases: purchases.length,
-    total_revenue_eur: Number(totalRevenue.toFixed(2)),
-    average_purchase_eur: Number(avgPurchase.toFixed(2)),
-    climate_logs: climate.length,
-    avg_temperature: Number(avg(temps).toFixed(2)),
-    min_temperature: Number(min(temps).toFixed(2)),
-    max_temperature: Number(max(temps).toFixed(2)),
-    avg_humidity: Number(avg(hums).toFixed(2)),
-    min_humidity: Number(min(hums).toFixed(2)),
-    max_humidity: Number(max(hums).toFixed(2)),
-  }));
+  if (el.adminStatsDetails) {
+    el.adminStatsDetails.hidden = false;
+  }
+  applyAdminStatsView();
+  syncCollapsibleUi();
 }
 
 async function handleOpenLocker() {
@@ -2279,6 +2531,7 @@ function clearAll() {
     resetDashboard();
     localStorage.removeItem(STORAGE_KEYS.selectedMachineId);
     setStatus("");
+    updateTopMachineStrip();
     return;
   }
 
@@ -2296,6 +2549,7 @@ function clearAll() {
   localStorage.removeItem(STORAGE_KEYS.selectedUserId);
   localStorage.removeItem(STORAGE_KEYS.selectedMachineId);
   setStatus("");
+  updateTopMachineStrip();
 }
 
 function startAutoRefreshLoop() {
@@ -2385,8 +2639,51 @@ function wireEvents() {
   el.setColorAllBtn.addEventListener("click", () => handleSetColorAll().catch((e) => setStatus(`Set all colors failed: ${e.message}`)));
   el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
   el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
-  el.rebootRpiBtn.addEventListener("click", () => handleRebootRpi().catch((e) => setStatus(`Reboot RPI failed: ${e.message}`)));
-  el.rebootStmBtn.addEventListener("click", () => handleRebootStm32().catch((e) => setStatus(`Reboot STM32 failed: ${e.message}`)));
+
+  if (el.pickColorBtn && el.colorPicker) {
+    el.pickColorBtn.addEventListener("click", () => {
+      el.colorPicker.click();
+    });
+
+    el.colorPicker.addEventListener("input", () => {
+      const value = String(el.colorPicker.value || "#000000").replace("#", "");
+      if (value.length !== 6) return;
+      const r = parseInt(value.slice(0, 2), 16);
+      const g = parseInt(value.slice(2, 4), 16);
+      const b = parseInt(value.slice(4, 6), 16);
+      if (!Number.isInteger(r) || !Number.isInteger(g) || !Number.isInteger(b)) return;
+      el.colorR.value = String(r);
+      el.colorG.value = String(g);
+      el.colorB.value = String(b);
+    });
+  }
+
+  if (el.lightingToggleBtn) {
+    el.lightingToggleBtn.addEventListener("click", () => {
+      state.ui.lightingCollapsed = !state.ui.lightingCollapsed;
+      syncCollapsibleUi();
+    });
+  }
+
+  if (el.machineCommandsToggleBtn) {
+    el.machineCommandsToggleBtn.addEventListener("click", () => {
+      state.ui.machineCommandsCollapsed = !state.ui.machineCommandsCollapsed;
+      syncCollapsibleUi();
+    });
+  }
+
+  if (el.toggleClimateDetailsBtn) {
+    el.toggleClimateDetailsBtn.addEventListener("click", () => {
+      state.ui.climateCollapsed = !state.ui.climateCollapsed;
+      syncCollapsibleUi();
+    });
+  }
+
+  if (el.statsPeriodSelect) {
+    el.statsPeriodSelect.addEventListener("change", () => {
+      applyAdminStatsView();
+    });
+  }
 
   if (el.signInBtn) {
     el.signInBtn.addEventListener("click", () => {
@@ -2444,6 +2741,9 @@ async function init() {
   renderHeadlightButtons();
   renderPurchaseLogs([]);
   applyOpModeButtonState(false);
+  setAuthLayoutVisible(false);
+  syncCollapsibleUi();
+  updateTopMachineStrip();
   syncBusyUi();
   startAutoRefreshLoop();
 
@@ -2472,14 +2772,17 @@ async function init() {
         setNewPasswordChallengeVisible(false);
         setStatus("Stored session is invalid. Please sign in again.");
         setAuthStatus(`Session reset: ${e.message}`);
+        setAuthLayoutVisible(false);
       }
     } else {
       setStatus("Sign in to continue.", true);
       setAuthStatus("Not signed in");
+      setAuthLayoutVisible(false);
     }
   } catch (e) {
     setStatus(`Failed to initialize frontend: ${e.message}`);
     setAuthStatus(`Initialization failed: ${e.message}`);
+    setAuthLayoutVisible(false);
   }
 
   syncBusyUi();

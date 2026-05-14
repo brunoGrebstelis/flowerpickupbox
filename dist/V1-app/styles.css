@@ -32,6 +32,10 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .app-shell {
   max-width: 1280px;
   margin: 0 auto;
@@ -57,6 +61,12 @@ body {
   gap: 12px;
 }
 
+.sign-in-card {
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .top-card h1 {
   margin: 4px 0 0;
   font-size: 26px;
@@ -80,6 +90,10 @@ body {
   display: grid;
   gap: 6px;
   min-width: 300px;
+}
+
+.sign-in-card .auth-config {
+  min-width: unset;
 }
 
 .auth-actions {
@@ -121,7 +135,71 @@ body {
 }
 
 .selector-card .actions {
+  align-self: end;
+}
+
+.selector-card input[readonly] {
+  background: #f5f7fb;
+}
+
+.selector-card .actions {
   min-width: 0;
+}
+
+.machine-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(220px, auto);
+  gap: 12px;
+  align-items: center;
+}
+
+.machine-strip-label {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.machine-strip-temp,
+.machine-strip-heartbeat {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.machine-strip-heartbeat-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.heartbeat-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #ccd4e3;
+  display: inline-block;
+}
+
+.heartbeat-ok {
+  background: var(--green);
+  border-color: #2da358;
+}
+
+.heartbeat-bad {
+  background: var(--red);
+  border-color: #c03d3d;
+}
+
+.heartbeat-unknown {
+  background: #d3dae8;
+  border-color: #b6c0d3;
+}
+
+.machine-strip-opmode-wrap .state-toggle {
+  width: 100%;
 }
 
 .field {
@@ -465,6 +543,34 @@ h2 {
   margin-bottom: 12px;
 }
 
+.collapsible-block {
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  background: #f8f9fc;
+  padding: 8px;
+}
+
+.collapse-toggle {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border-color: #d6deeb;
+}
+
+.collapse-toggle::after {
+  content: "▾";
+  float: right;
+  color: #5d6f8f;
+}
+
+.collapsible-block.collapsed .collapse-toggle::after {
+  content: "▸";
+}
+
+.collapse-content {
+  margin-top: 8px;
+}
+
 .fan-button-row {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -582,6 +688,47 @@ input.failed {
   font-size: 13px;
 }
 
+.admin-stats-controls {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.admin-stats-summary {
+  min-height: 0;
+}
+
+.admin-stats-details {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.chart-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.chart-grid canvas {
+  width: 100%;
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.who-name {
+  display: grid;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.who-name .who-first,
+.who-name .who-last {
+  display: block;
+}
+
 .command-list {
   margin: 0;
   padding-left: 18px;
@@ -596,6 +743,11 @@ input.failed {
     grid-template-columns: 1fr;
   }
 
+  .machine-strip {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
   .api-config {
     min-width: unset;
     width: 100%;
@@ -607,6 +759,10 @@ input.failed {
   }
 
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-stats-controls {
     grid-template-columns: 1fr;
   }
 
@@ -655,6 +811,10 @@ input.failed {
   .status,
   .data-table th,
   .data-table td {
+    text-align: center;
+  }
+
+  .collapse-toggle {
     text-align: center;
   }
 

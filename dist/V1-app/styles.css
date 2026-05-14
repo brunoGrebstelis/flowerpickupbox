@@ -148,7 +148,7 @@ body {
 
 .machine-strip {
   display: grid;
-  grid-template-columns: auto auto minmax(220px, auto);
+  grid-template-columns: 1fr auto minmax(220px, auto);
   gap: 12px;
   align-items: center;
 }
@@ -172,6 +172,10 @@ body {
 .machine-strip-temp-wrap,
 .machine-strip-heartbeat-wrap {
   justify-self: start;
+}
+
+.machine-strip-heartbeat-wrap {
+  justify-self: end;
 }
 
 .machine-strip-heartbeat-wrap {
@@ -211,12 +215,27 @@ body {
   margin-top: 8px;
   display: grid;
   gap: 8px;
+  width: 100%;
+}
+
+.stats-period-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2a3f63;
 }
 
 .stats-custom-range {
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
+  width: 100%;
+}
+
+.stats-custom-range input,
+.stats-period-panel select {
+  width: 100%;
+  min-width: 0;
 }
 
 .chart-card {
@@ -816,8 +835,12 @@ input.failed {
   }
 
   .machine-strip {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     gap: 10px;
+  }
+
+  .machine-strip-opmode-wrap {
+    grid-column: 1 / -1;
   }
 
   .api-config {
@@ -892,6 +915,14 @@ input.failed {
 
   .chart-card h3 {
     text-align: center;
+  }
+
+  .stats-period-panel,
+  .stats-custom-range,
+  .stats-custom-range input,
+  .stats-period-panel select {
+    width: 100%;
+    max-width: 100%;
   }
 
   h2 {

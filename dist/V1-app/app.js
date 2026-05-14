@@ -322,6 +322,18 @@ function openColorPickerModal() {
   if (input) input.value = currentHex;
   modal.hidden = false;
   state.colorPickerModalOpen = true;
+
+  if (input) {
+    try {
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      } else {
+        input.click();
+      }
+    } catch {
+      // ignore platform limitations
+    }
+  }
 }
 
 function getSignedInUserLabel() {
@@ -572,8 +584,7 @@ function applyAdminStatsView() {
       row.className = "stats-row-button";
       row.innerHTML = `<div class="info-item"><div class="info-label">${rowDef.label}</div><div class="info-value">${rowDef.value}</div></div>`;
       row.addEventListener("click", () => {
-        const next = state.stats.activeChart === rowDef.chartMode ? "" : rowDef.chartMode;
-        setChartVisibility(next);
+        setChartVisibility(rowDef.chartMode);
       });
       el.adminStats.appendChild(row);
     });
@@ -599,7 +610,7 @@ function applyAdminStatsView() {
   const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Purchases");
 
   const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0));
-  const revenueMeta = drawSimplePie(el.revenueChart, revenueSeries.labels, revenueSeries.values, "Revenue");
+  const revenueMeta = drawSimpleBars(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
 
   state.chartMeta.purchasesByDay = purchasesSeries.keys;
   state.chartMeta.revenueByDay = revenueSeries.keys;
@@ -2874,7 +2885,9 @@ function wireEvents() {
 
   el.machineSelect.addEventListener("change", onMachineSelected);
   el.loadBtn.addEventListener("click", () => loadDashboard().catch((e) => setStatus(`Failed to load dashboard: ${e.message}`)));
-  el.clearBtn.addEventListener("click", clearAll);
+  if (el.clearBtn) {
+    el.clearBtn.addEventListener("click", clearAll);
+  }
 
   el.openLockerBtn.addEventListener("click", () => handleOpenLocker().catch((e) => setStatus(`Open locker failed: ${e.message}`)));
   el.setPriceBtn.addEventListener("click", () => handleSetPrice().catch((e) => setStatus(`Set price failed: ${e.message}`)));
@@ -2919,12 +2932,6 @@ function wireEvents() {
     el.toggleClimateDetailsBtn.addEventListener("click", () => {
       state.ui.climateCollapsed = !state.ui.climateCollapsed;
       syncCollapsibleUi();
-    });
-  }
-
-  if (el.statsPeriodToggleBtn && el.statsPeriodPanel) {
-    el.statsPeriodToggleBtn.addEventListener("click", () => {
-      el.statsPeriodPanel.hidden = !el.statsPeriodPanel.hidden;
     });
   }
 

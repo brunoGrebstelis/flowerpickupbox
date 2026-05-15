@@ -255,6 +255,13 @@ function setRgbFieldsFromHex(hex) {
 
 function openNativeColorPicker(inputEl) {
   if (!inputEl) return;
+  if (el.colorPicker) {
+    el.colorPicker.hidden = false;
+    el.colorPicker.style.position = "fixed";
+    el.colorPicker.style.left = "-9999px";
+    el.colorPicker.style.opacity = "0";
+    el.colorPicker.style.pointerEvents = "none";
+  }
   try {
     if (typeof inputEl.showPicker === "function") {
       inputEl.showPicker();
@@ -354,17 +361,15 @@ function ensureColorPickerModal() {
 
 function openColorPickerModal() {
   const modal = ensureColorPickerModal();
-  const input = modal.querySelector("#colorPickerModalInput");
+  const input = el.colorPicker || modal.querySelector("#colorPickerModalInput");
   const r = Number(el.colorR.value);
   const g = Number(el.colorG.value);
   const b = Number(el.colorB.value);
   const currentHex = [r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
     ? `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`
     : (el.colorPicker?.value || "#ffffff");
-  if (input) {
-    input.value = currentHex;
-    modal.dataset.originalColor = currentHex;
-  }
+  if (input) input.value = currentHex;
+  modal.dataset.originalColor = currentHex;
   modal.hidden = false;
   state.colorPickerModalOpen = true;
   openNativeColorPicker(input);
@@ -837,14 +842,13 @@ function drawSimplePie(canvas, labels, values, title = "") {
   }
 
   const zipped = values
-    .map((v, i) => ({ label: labels[i] || "-", value: Math.max(0, Number(v) || 0), idx: i }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .map((v, i) => ({ label: labels[i] || "-", value: Math.max(0, Number(v) || 0), idx: i }));
 
-  zipped.forEach((entry, idx) => {
+  zipped.forEach((entry) => {
     const v = entry.value;
     const share = v / total;
     const next = angle + share * Math.PI * 2;
-    const color = palette[idx % palette.length];
+    const color = palette[entry.idx % palette.length];
 
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -853,7 +857,7 @@ function drawSimplePie(canvas, labels, values, title = "") {
     ctx.fillStyle = color;
     ctx.fill();
 
-    slices.push({ idx, start: angle, end: next, value: v, label: entry.label || "-" });
+    slices.push({ idx: entry.idx, start: angle, end: next, value: v, label: entry.label || "-" });
     angle = next;
   });
 

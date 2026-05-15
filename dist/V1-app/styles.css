@@ -251,12 +251,21 @@ body {
   grid-template-columns: 1fr;
   gap: 6px;
   width: 100%;
+  min-width: 0;
 }
 
 .stats-custom-range input,
 .stats-period-panel select {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  display: block;
+}
+
+.stats-period-panel label,
+.stats-custom-range label {
+  display: block;
+  width: 100%;
 }
 
 .chart-card {

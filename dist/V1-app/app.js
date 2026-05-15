@@ -241,6 +241,41 @@ function updateStatsPeriodButtonLabel() {
   el.statsPeriodToggleBtn.textContent = formatMonthYearLabel(new Date());
 }
 
+function setRgbFieldsFromHex(hex) {
+  const value = String(hex || "#000000").replace("#", "");
+  if (value.length !== 6) return;
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  if (!Number.isInteger(r) || !Number.isInteger(g) || !Number.isInteger(b)) return;
+  el.colorR.value = String(r);
+  el.colorG.value = String(g);
+  el.colorB.value = String(b);
+}
+
+function openNativeColorPicker(inputEl) {
+  if (!inputEl) return;
+  try {
+    if (typeof inputEl.showPicker === "function") {
+      inputEl.showPicker();
+      return;
+    }
+  } catch {
+    // Fallback below for browsers that restrict showPicker.
+  }
+  try {
+    inputEl.click();
+  } catch {
+    // No-op if browser blocks synthetic click.
+  }
+}
+
+function closeStatsPeriodPanel() {
+  if (el.statsPeriodPanel) {
+    el.statsPeriodPanel.hidden = true;
+  }
+}
+
 function setChartVisibility(mode = "") {
   state.stats.activeChart = mode;
   if (!el.chartGrid) return;
@@ -285,7 +320,16 @@ function ensureColorPickerModal() {
     state.colorPickerModalOpen = false;
   };
 
-  cancelBtn?.addEventListener("click", close);
+  cancelBtn?.addEventListener("click", () => {
+    const original = String(modal.dataset.originalColor || "").trim();
+    if (original && input) {
+      input.value = original;
+      if (el.colorPicker) {
+        el.colorPicker.value = original;
+      }
+    }
+    close();
+  });
   modal.addEventListener("click", (event) => {
     if (event.target === modal) close();
   });
@@ -293,15 +337,13 @@ function ensureColorPickerModal() {
   okBtn?.addEventListener("click", () => {
     const value = String(input?.value || "#000000").replace("#", "");
     if (value.length !== 6) return close();
-    const r = parseInt(value.slice(0, 2), 16);
-    const g = parseInt(value.slice(2, 4), 16);
-    const b = parseInt(value.slice(4, 6), 16);
-    if (Number.isInteger(r) && Number.isInteger(g) && Number.isInteger(b)) {
-      el.colorR.value = String(r);
-      el.colorG.value = String(g);
-      el.colorB.value = String(b);
+    if (Number.isInteger(parseInt(value.slice(0, 2), 16))
+      && Number.isInteger(parseInt(value.slice(2, 4), 16))
+      && Number.isInteger(parseInt(value.slice(4, 6), 16))) {
+      const hex = `#${value}`;
+      setRgbFieldsFromHex(hex);
       if (el.colorPicker) {
-        el.colorPicker.value = `#${value}`;
+        el.colorPicker.value = hex;
       }
     }
     close();
@@ -319,9 +361,13 @@ function openColorPickerModal() {
   const currentHex = [r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
     ? `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`
     : (el.colorPicker?.value || "#ffffff");
-  if (input) input.value = currentHex;
+  if (input) {
+    input.value = currentHex;
+    modal.dataset.originalColor = currentHex;
+  }
   modal.hidden = false;
   state.colorPickerModalOpen = true;
+  openNativeColorPicker(input);
 }
 
 function getSignedInUserLabel() {
@@ -498,12 +544,8 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   ctx.fillText(String(maxValue.toFixed(2)), padLeft - 6, padTop + 4);
   ctx.fillText("0", padLeft - 6, padTop + chartH);
 
-  ctx.save();
-  ctx.translate(12, padTop + chartH / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.textAlign = "center";
-  ctx.fillText("Revenue", 0, 0);
-  ctx.restore();
+  ctx.textAlign = "left";
+  ctx.fillText("Revenue", 8, 14);
 
   const points = nums.map((v, idx) => {
     const x = padLeft + idx * stepX;
@@ -2325,8 +2367,8 @@ async function restoreAuthFromStorageAndRefreshIfNeeded() {
   return true;
 }
 
-async function restoreMachineSelectionAndAutoloadDashboard() {
-  const storedMachineIdRaw = localStorage.getItem(STORAGE_KEYS.selectedMachineId);
+async function restoreMachineSelectionAndAutoloadDashboard(preferredMachineIdRaw = null) {
+  const storedMachineIdRaw = preferredMachineIdRaw ?? localStorage.getItem(STORAGE_KEYS.selectedMachineId);
   if (!storedMachineIdRaw) return;
 
   const storedMachineId = Number(storedMachineIdRaw);
@@ -2368,8 +2410,9 @@ async function bootstrapAuthenticatedApp() {
   el.userSelect.value = String(authUserId);
   el.userSelect.disabled = true;
 
+  const storedMachineIdRaw = localStorage.getItem(STORAGE_KEYS.selectedMachineId);
   await onUserSelected();
-  await restoreMachineSelectionAndAutoloadDashboard();
+  await restoreMachineSelectionAndAutoloadDashboard(storedMachineIdRaw);
 
   state.auth.isAuthenticated = true;
   setAuthLayoutVisible(true);
@@ -3048,15 +3091,7 @@ function wireEvents() {
     });
 
     el.colorPicker.addEventListener("input", () => {
-      const value = String(el.colorPicker.value || "#000000").replace("#", "");
-      if (value.length !== 6) return;
-      const r = parseInt(value.slice(0, 2), 16);
-      const g = parseInt(value.slice(2, 4), 16);
-      const b = parseInt(value.slice(4, 6), 16);
-      if (!Number.isInteger(r) || !Number.isInteger(g) || !Number.isInteger(b)) return;
-      el.colorR.value = String(r);
-      el.colorG.value = String(g);
-      el.colorB.value = String(b);
+      setRgbFieldsFromHex(el.colorPicker.value || "#000000");
     });
   }
 
@@ -3087,6 +3122,9 @@ function wireEvents() {
         el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
       }
       applyAdminStatsView();
+      if (el.statsPeriodSelect.value !== "custom") {
+        closeStatsPeriodPanel();
+      }
     });
   }
 
@@ -3104,13 +3142,35 @@ function wireEvents() {
 
   if (el.statsPeriodToggleBtn && el.statsPeriodSelect) {
     el.statsPeriodToggleBtn.addEventListener("click", () => {
-      el.statsPeriodSelect.value = "this_month";
-      if (el.statsCustomRange) {
-        el.statsCustomRange.hidden = true;
+      const nextHidden = !Boolean(el.statsPeriodPanel?.hidden);
+      if (el.statsPeriodPanel) {
+        el.statsPeriodPanel.hidden = nextHidden;
       }
-      applyAdminStatsView();
+      if (!nextHidden) {
+        try {
+          if (typeof el.statsPeriodSelect.showPicker === "function") {
+            el.statsPeriodSelect.showPicker();
+          } else {
+            el.statsPeriodSelect.focus();
+          }
+        } catch {
+          el.statsPeriodSelect.focus();
+        }
+      }
     });
   }
+
+  document.addEventListener("click", (event) => {
+    if (!el.statsPeriodPanel || !el.statsPeriodToggleBtn) return;
+    if (el.statsPeriodPanel.hidden) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    const inPanel = el.statsPeriodPanel.contains(target);
+    const inButton = el.statsPeriodToggleBtn.contains(target);
+    if (!inPanel && !inButton) {
+      closeStatsPeriodPanel();
+    }
+  });
 
   if (el.signInBtn) {
     el.signInBtn.addEventListener("click", () => {
@@ -3171,6 +3231,10 @@ async function init() {
   setAuthLayoutVisible(false);
   syncCollapsibleUi();
   updateStatsPeriodButtonLabel();
+  closeStatsPeriodPanel();
+  if (el.statsCustomRange && el.statsPeriodSelect) {
+    el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
+  }
   setChartVisibility("");
   updateTopMachineStrip();
   syncBusyUi();

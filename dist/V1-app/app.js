@@ -346,13 +346,6 @@ function setAuthLayoutVisible(isAuthenticated) {
   if (el.signedInUser) {
     el.signedInUser.value = isAuthenticated ? getSignedInUserLabel() : "-";
   }
-
-  if (isAuthenticated && state.selectedMachineId && el.machineStrip) {
-    const appShell = document.querySelector(".app-shell");
-    if (appShell && appShell.firstElementChild !== el.machineStrip) {
-      appShell.insertBefore(el.machineStrip, appShell.firstElementChild);
-    }
-  }
 }
 
 function parseDateMaybe(value) {
@@ -479,10 +472,10 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
-  const padLeft = 38;
+  const padLeft = 48;
   const padRight = 16;
-  const padTop = 18;
-  const padBottom = 30;
+  const padTop = 24;
+  const padBottom = 42;
   const chartW = Math.max(10, width - padLeft - padRight);
   const chartH = Math.max(10, height - padTop - padBottom);
 
@@ -498,6 +491,19 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   ctx.lineTo(padLeft, padTop + chartH);
   ctx.lineTo(padLeft + chartW, padTop + chartH);
   ctx.stroke();
+
+  ctx.fillStyle = "#60708d";
+  ctx.font = "11px Segoe UI";
+  ctx.textAlign = "right";
+  ctx.fillText(String(maxValue.toFixed(2)), padLeft - 6, padTop + 4);
+  ctx.fillText("0", padLeft - 6, padTop + chartH);
+
+  ctx.save();
+  ctx.translate(12, padTop + chartH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.fillText("Revenue", 0, 0);
+  ctx.restore();
 
   const points = nums.map((v, idx) => {
     const x = padLeft + idx * stepX;
@@ -527,9 +533,14 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
       ctx.fillStyle = "#60708d";
       ctx.font = "11px Segoe UI";
       ctx.textAlign = "center";
-      ctx.fillText(label, p.x, padTop + chartH + 14);
+      ctx.fillText(label, p.x, padTop + chartH + 16);
     }
   });
+
+  ctx.fillStyle = "#60708d";
+  ctx.font = "11px Segoe UI";
+  ctx.textAlign = "center";
+  ctx.fillText("Time", padLeft + chartW / 2, height - 6);
 
   const hit = points.map((p) => ({
     x: p.x - 8,
@@ -761,6 +772,8 @@ function drawSimplePie(canvas, labels, values, title = "") {
   canvas.height = Math.floor(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
 
   const total = values.reduce((a, b) => a + Math.max(0, Number(b) || 0), 0);
   const cx = 90;
@@ -805,6 +818,11 @@ function drawSimplePie(canvas, labels, values, title = "") {
   ctx.fillStyle = "#1f2d46";
   ctx.font = "12px Segoe UI";
   ctx.fillText(title, 18, 16);
+
+  ctx.fillStyle = "#60708d";
+  ctx.font = "11px Segoe UI";
+  ctx.fillText("X: time buckets", 18, height - 18);
+  ctx.fillText("Y: share (%)", 18, height - 6);
 
   const legendX = 170;
   let legendY = 28;
@@ -1734,7 +1752,7 @@ function applyOpModeButtonState(opModeValue) {
   el.toggleOpModeBtn.classList.add(state.opModeValue ? "on" : "off");
   el.toggleOpModeBtn.classList.toggle("pending", hasPendingControl("opMode"));
   el.toggleOpModeBtn.classList.toggle("failed", hasFailedControl("opMode"));
-  el.toggleOpModeBtn.textContent = state.opModeValue ? "ON" : "OFF";
+  el.toggleOpModeBtn.textContent = `Operation mode: ${state.opModeValue ? "ON" : "OFF"}`;
 }
 
 function renderLightingModes() {
@@ -2515,13 +2533,6 @@ function onMachineSelected() {
   state.selectedCompanyId = selected ? selected.companyId : null;
   state.selectedRole = selected ? selected.role : null;
 
-  if (state.selectedMachineId && el.machineStrip) {
-    const appShell = document.querySelector(".app-shell");
-    if (appShell && appShell.firstElementChild !== el.machineStrip) {
-      appShell.insertBefore(el.machineStrip, appShell.firstElementChild);
-    }
-  }
-
   persistSelection();
 }
 
@@ -2621,6 +2632,11 @@ async function loadDashboard(options = {}) {
 
   if (!quiet) {
     setStatus("Dashboard loaded successfully.", true);
+    if (el.machineStrip) {
+      window.requestAnimationFrame(() => {
+        el.machineStrip.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
   }
 }
 
@@ -3082,6 +3098,16 @@ function wireEvents() {
 
   if (el.statsCustomTo) {
     el.statsCustomTo.addEventListener("change", () => {
+      applyAdminStatsView();
+    });
+  }
+
+  if (el.statsPeriodToggleBtn && el.statsPeriodSelect) {
+    el.statsPeriodToggleBtn.addEventListener("click", () => {
+      el.statsPeriodSelect.value = "this_month";
+      if (el.statsCustomRange) {
+        el.statsCustomRange.hidden = true;
+      }
       applyAdminStatsView();
     });
   }

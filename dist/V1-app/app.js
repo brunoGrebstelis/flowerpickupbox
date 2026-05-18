@@ -537,6 +537,23 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   return { bars: hit, width, height, points };
 }
 
+function buildBucketKey(dt, bucketType = "day") {
+  if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return "";
+  if (bucketType === "hour") {
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")} ${String(dt.getHours()).padStart(2, "0")}:00`;
+  }
+  if (bucketType === "week") {
+    const day = new Date(dt);
+    const dayOfWeek = (day.getDay() + 6) % 7;
+    day.setDate(day.getDate() - dayOfWeek);
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  }
+  if (bucketType === "month") {
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+  }
+  return dt.toISOString().slice(0, 10);
+}
+
 function bucketByDate(logs, valueSelector, options = {}) {
   const mode = String(options.mode || "auto");
   const byDay = new Map();
@@ -566,19 +583,7 @@ function bucketByDate(logs, valueSelector, options = {}) {
   }
 
   withDate.forEach(({ item, dt }) => {
-    let key = "";
-    if (bucketType === "hour") {
-      key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")} ${String(dt.getHours()).padStart(2, "0")}:00`;
-    } else if (bucketType === "week") {
-      const day = new Date(dt);
-      const dayOfWeek = (day.getDay() + 6) % 7;
-      day.setDate(day.getDate() - dayOfWeek);
-      key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
-    } else if (bucketType === "month") {
-      key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
-    } else {
-      key = dt.toISOString().slice(0, 10);
-    }
+    const key = buildBucketKey(dt, bucketType);
     byDay.set(key, (byDay.get(key) || 0) + Number(valueSelector(item) || 0));
   });
 
@@ -595,31 +600,67 @@ function bucketByDate(logs, valueSelector, options = {}) {
     keys: tail.map(([k]) => k),
     labels,
     values: tail.map(([, v]) => Number(v.toFixed ? v.toFixed(2) : v)),
+    bucketType,
   };
 }
 
-function setPurchaseLogsByDay(dayKey) {
+function setPurchaseLogsByBucket(bucketKey, bucketType = "day") {
   const all = state.latestStatsRaw.purchases || [];
   const filtered = all.filter((p) => {
     const dt = parseDateMaybe(p.purchased_at || p.created_at);
-    return dt && dt.toISOString().slice(0, 10) === dayKey;
+    return dt && buildBucketKey(dt, bucketType) === bucketKey;
   });
   renderPurchaseLogs(filtered);
-  setStatus(`Showing ${filtered.length} purchases for ${dayKey}.`, true);
+  setStatus(`Showing ${filtered.length} purchases for ${bucketKey}.`, true);
 }
 
-function bindCanvasPointClicks(canvas, barsMeta, dayKeys, onPick) {
-  if (!canvas || !Array.isArray(barsMeta) || !dayKeys?.length) return;
+function bindCanvasPointClicks(canvas, chartMeta, dayKeys, onPick) {
+  if (!canvas || !dayKeys?.length) return;
   canvas.onclick = (event) => {
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    const picked = barsMeta.find((bar) => {
-      return x >= bar.x && x <= (bar.x + bar.width) && y >= bar.y && y <= (bar.y + bar.height);
-    });
-    if (!picked) return;
-    const dayKey = dayKeys[picked.index];
+    let pickedIndex = -1;
+
+    const bars = Array.isArray(chartMeta)
+      ? chartMeta
+      : (Array.isArray(chartMeta?.bars) ? chartMeta.bars : []);
+
+    if (bars.length) {
+      const picked = bars.find((bar) => {
+        return x >= bar.x && x <= (bar.x + bar.width) && y >= bar.y && y <= (bar.y + bar.height);
+      });
+      if (picked && Number.isInteger(picked.index)) {
+        pickedIndex = picked.index;
+      }
+    }
+
+    if (pickedIndex < 0 && chartMeta && Array.isArray(chartMeta.slices)) {
+      const dx = x - Number(chartMeta.cx || 0);
+      const dy = y - Number(chartMeta.cy || 0);
+      const radius = Number(chartMeta.radius || 0);
+      const dist = Math.hypot(dx, dy);
+      if (radius > 0 && dist <= radius) {
+        const full = Math.PI * 2;
+        const normalize = (a) => ((a % full) + full) % full;
+        const angle = normalize(Math.atan2(dy, dx));
+        const pickedSlice = chartMeta.slices.find((slice) => {
+          const start = normalize(slice.start);
+          const end = normalize(slice.end);
+          if (end < start) {
+            return angle >= start || angle <= end;
+          }
+          return angle >= start && angle <= end;
+        });
+        if (pickedSlice && Number.isInteger(pickedSlice.idx)) {
+          pickedIndex = pickedSlice.idx;
+        }
+      }
+    }
+
+    if (pickedIndex < 0) return;
+    const dayKey = dayKeys[pickedIndex];
     if (!dayKey) return;
     onPick(dayKey);
   };
@@ -755,16 +796,16 @@ function applyAdminStatsView() {
 
   bindCanvasPointClicks(
     el.purchasesChart,
-    purchasesMeta?.bars || [],
+    purchasesMeta,
     purchasesSeries.keys,
-    (dayKey) => setPurchaseLogsByDay(dayKey)
+    (dayKey) => setPurchaseLogsByBucket(dayKey, purchasesSeries.bucketType || "day")
   );
 
   bindCanvasPointClicks(
     el.revenueChart,
-    revenueMeta?.bars || [],
+    revenueMeta,
     revenueSeries.keys,
-    (dayKey) => setPurchaseLogsByDay(dayKey)
+    (dayKey) => setPurchaseLogsByBucket(dayKey, revenueSeries.bucketType || "day")
   );
 }
 
@@ -1980,6 +2021,9 @@ function syncSelectedLockerFormFields() {
     el.colorR.value = "";
     el.colorG.value = "";
     el.colorB.value = "";
+    if (el.colorPicker) {
+      el.colorPicker.value = "#ffffff";
+    }
     return;
   }
 
@@ -1994,6 +2038,13 @@ function syncSelectedLockerFormFields() {
   el.colorR.value = locker.color_r ?? "";
   el.colorG.value = locker.color_g ?? "";
   el.colorB.value = locker.color_b ?? "";
+
+  const r = Number(el.colorR.value);
+  const g = Number(el.colorG.value);
+  const b = Number(el.colorB.value);
+  if (el.colorPicker && [r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) {
+    el.colorPicker.value = `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+  }
 }
 
 function scrollLockerCommandsIntoViewOnMobile() {

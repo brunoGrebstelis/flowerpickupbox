@@ -138,6 +138,7 @@ const state = {
     customTo: "",
   },
   colorPickerModalOpen: false,
+  chartRenderSignature: "",
 };
 
 const el = {
@@ -379,15 +380,22 @@ function normalizeLockerLabel(lockerNumberOrId) {
   return `Locker ${lockerNumberOrId}`;
 }
 
+function getCanvasDisplaySize(canvas, minWidth, minHeight) {
+  const rect = canvas.getBoundingClientRect();
+  const fallbackWidth = Number(canvas.getAttribute("width")) || canvas.clientWidth || minWidth;
+  const fallbackHeight = Number(canvas.getAttribute("height")) || canvas.clientHeight || minHeight;
+  const width = Math.max(minWidth, Math.floor(rect.width || fallbackWidth || minWidth));
+  const height = Math.max(minHeight, Math.floor(rect.height || fallbackHeight || minHeight));
+  return { width, height };
+}
+
 function drawSimpleBars(canvas, labels, values, color, suffix = "") {
   if (!canvas || !canvas.getContext) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  const width = Math.max(320, Math.floor(rect.width || 320));
-  const height = Math.max(150, Math.floor(canvas.height || 150));
+  const { width, height } = getCanvasDisplaySize(canvas, 320, 150);
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -442,10 +450,8 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  const width = Math.max(320, Math.floor(rect.width || 320));
-  const height = Math.max(170, Math.floor(canvas.height || 170));
+  const { width, height } = getCanvasDisplaySize(canvas, 320, 170);
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -666,6 +672,18 @@ function applyAdminStatsView() {
   const purchases = (state.latestStatsRaw.purchases || []).filter((x) => inPeriod(x.purchased_at || x.created_at));
   const climate = (state.latestStatsRaw.climate || []).filter((x) => inPeriod(x.recorded_at || x.created_at));
 
+  const signature = JSON.stringify({
+    period,
+    purchasesLen: purchases.length,
+    climateLen: climate.length,
+    purchasesTail: purchases.slice(-30).map((x) => [x.purchase_log_id || x.id || null, x.purchased_at || x.created_at || null, Number(x.amount || 0)]),
+    climateTail: climate.slice(-30).map((x) => [x.climate_log_id || x.id || null, x.recorded_at || x.created_at || null, Number(x.temperature || 0), Number(x.humidity || 0)]),
+  });
+  if (state.chartRenderSignature === signature) {
+    return;
+  }
+  state.chartRenderSignature = signature;
+
   const nextSignature = JSON.stringify({
     period,
     purchasesCount: purchases.length,
@@ -755,10 +773,8 @@ function drawSimplePie(canvas, labels, values, title = "") {
   const ctx = canvas.getContext("2d");
   if (!ctx) return { slices: [] };
 
-  const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  const width = Math.max(280, Math.floor(rect.width || 320));
-  const height = Math.max(170, Math.floor(canvas.height || 170));
+  const { width, height } = getCanvasDisplaySize(canvas, 280, 170);
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -2638,6 +2654,7 @@ async function loadAdminStats(machineId) {
 
   state.latestStatsRaw.purchases = purchases;
   state.latestStatsRaw.climate = climate;
+  state.chartRenderSignature = "";
   state.latestRenderedStatsSignature = "";
 
   if (el.adminStatsDetails) {
@@ -3033,11 +3050,17 @@ function wireEvents() {
   el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
   el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
 
-  if (el.pickColorBtn && el.colorPicker) {
-    el.pickColorBtn.addEventListener("click", () => {
-      openColorPickerModal();
-    });
-
+  if (el.colorPicker) {
+    const syncPickerFromRgb = () => {
+      const r = Number(el.colorR?.value);
+      const g = Number(el.colorG?.value);
+      const b = Number(el.colorB?.value);
+      if ([r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) {
+        el.colorPicker.value = `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+      }
+    };
+    el.colorPicker.addEventListener("pointerdown", syncPickerFromRgb);
+    el.colorPicker.addEventListener("focus", syncPickerFromRgb);
     el.colorPicker.addEventListener("input", () => {
       setRgbFieldsFromHex(el.colorPicker.value || "#000000");
     });

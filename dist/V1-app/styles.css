@@ -292,7 +292,27 @@ body {
 }
 
 #colorPicker {
-  display: none;
+  display: inline-block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+#colorPicker::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+
+#colorPicker::-webkit-color-swatch {
+  border: none;
+  border-radius: 8px;
 }
 
 .chart-card {

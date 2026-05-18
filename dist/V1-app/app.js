@@ -286,12 +286,11 @@ function setChartVisibility(mode = "", options = {}) {
   el.chartGrid.hidden = false;
 
   let targetCard = null;
-  const showBoth = !mode;
 
   if (el.purchasesChart) {
     const card = el.purchasesChart.closest(".chart-card");
     if (card) {
-      card.hidden = !showBoth && mode !== "purchases";
+      card.hidden = false;
       card.classList.toggle("chart-card-active", mode === "purchases");
       if (mode === "purchases") {
         targetCard = card;
@@ -301,7 +300,7 @@ function setChartVisibility(mode = "", options = {}) {
   if (el.revenueChart) {
     const card = el.revenueChart.closest(".chart-card");
     if (card) {
-      card.hidden = !showBoth && mode !== "revenue";
+      card.hidden = false;
       card.classList.toggle("chart-card-active", mode === "revenue");
       if (mode === "revenue") {
         targetCard = card;

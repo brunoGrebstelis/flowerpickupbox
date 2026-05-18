@@ -336,12 +336,15 @@ body {
   -webkit-appearance: none;
   text-decoration: none;
   color: inherit;
+  position: relative;
+  z-index: 2;
   border: 1px dashed #cfd6e6;
   border-radius: 8px;
   padding: 8px;
   background: #fff;
   text-align: left;
   cursor: pointer;
+  pointer-events: auto;
   transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -357,6 +360,12 @@ body {
 
 .stats-row-button:active {
   transform: translateY(1px);
+}
+
+.stats-row-button .info-item,
+.stats-row-button .info-label,
+.stats-row-button .info-value {
+  pointer-events: none;
 }
 
 .stats-row-button.active {

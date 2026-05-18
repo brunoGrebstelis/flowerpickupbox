@@ -286,11 +286,12 @@ function setChartVisibility(mode = "", options = {}) {
   el.chartGrid.hidden = false;
 
   let targetCard = null;
+  const showBoth = !mode;
 
   if (el.purchasesChart) {
     const card = el.purchasesChart.closest(".chart-card");
     if (card) {
-      card.hidden = false;
+      card.hidden = !showBoth && mode !== "purchases";
       card.classList.toggle("chart-card-active", mode === "purchases");
       if (mode === "purchases") {
         targetCard = card;
@@ -300,7 +301,7 @@ function setChartVisibility(mode = "", options = {}) {
   if (el.revenueChart) {
     const card = el.revenueChart.closest(".chart-card");
     if (card) {
-      card.hidden = false;
+      card.hidden = !showBoth && mode !== "revenue";
       card.classList.toggle("chart-card-active", mode === "revenue");
       if (mode === "revenue") {
         targetCard = card;
@@ -2444,7 +2445,11 @@ async function restoreAuthFromStorageAndRefreshIfNeeded() {
 
   const now = Date.now();
   if (!state.auth.idToken || !Number.isFinite(state.auth.expiresAt) || state.auth.expiresAt <= now + 30000) {
-    return refreshCognitoSession();
+    try {
+      return await refreshCognitoSession();
+    } catch {
+      return false;
+    }
   }
 
   state.auth.isAuthenticated = true;
@@ -2481,6 +2486,18 @@ async function tryAutoSignInWithSavedCredentials() {
     el.authPassword.value = "";
   }
   return true;
+}
+
+function shouldForgetStoredPassword(error) {
+  const msg = String(error?.message || "").toLowerCase();
+  if (!msg) return false;
+  return [
+    "not authorized",
+    "incorrect username or password",
+    "user not found",
+    "password reset required",
+    "user does not exist",
+  ].some((token) => msg.includes(token));
 }
 
 async function restoreMachineSelectionAndAutoloadDashboard(preferredMachineIdRaw = null) {
@@ -3389,15 +3406,28 @@ async function init() {
     if (restored) {
       try {
         await bootstrapAuthenticatedApp();
+        localStorage.removeItem(STORAGE_KEYS.authSignedOut);
       } catch (e) {
         // Stored token can be invalid/expired or rejected by authorizer.
         // Fall back to clean signed-out state instead of hard init failure.
         clearAuthStorage();
         resetAuthState();
         setNewPasswordChallengeVisible(false);
-        setStatus("Stored session is invalid. Please sign in again.");
-        setAuthStatus(`Session reset: ${e.message}`);
-        setAuthLayoutVisible(false);
+        try {
+          const autoSigned = await tryAutoSignInWithSavedCredentials();
+          if (!autoSigned) {
+            setStatus("Stored session is invalid. Please sign in again.");
+            setAuthStatus(`Session reset: ${e.message}`);
+            setAuthLayoutVisible(false);
+          }
+        } catch (autoError) {
+          if (shouldForgetStoredPassword(autoError)) {
+            localStorage.removeItem(STORAGE_KEYS.authPassword);
+          }
+          setStatus(`Stored session reset and auto sign-in failed: ${autoError.message}`);
+          setAuthStatus(`Session reset: ${e.message}`);
+          setAuthLayoutVisible(false);
+        }
       }
     } else {
       try {
@@ -3408,7 +3438,9 @@ async function init() {
           setAuthLayoutVisible(false);
         }
       } catch (autoError) {
-        localStorage.removeItem(STORAGE_KEYS.authPassword);
+        if (shouldForgetStoredPassword(autoError)) {
+          localStorage.removeItem(STORAGE_KEYS.authPassword);
+        }
         setStatus(`Auto sign-in failed: ${autoError.message}`);
         setAuthStatus("Not signed in");
         setAuthLayoutVisible(false);

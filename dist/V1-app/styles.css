@@ -283,28 +283,16 @@ body {
   max-width: 100% !important;
   min-width: 0 !important;
   box-sizing: border-box !important;
+  padding: 8px 10px !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  overflow: hidden !important;
 }
 
 #colorPicker {
-  width: 44px;
-  min-width: 44px;
-  max-width: 44px;
-  height: 42px;
-  min-height: 42px;
-  padding: 0;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #fff;
-  cursor: pointer;
-}
-
-#colorPicker::-webkit-color-swatch-wrapper {
-  padding: 2px;
-}
-
-#colorPicker::-webkit-color-swatch {
-  border: none;
-  border-radius: 6px;
+  display: none;
 }
 
 .chart-card {

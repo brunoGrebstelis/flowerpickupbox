@@ -174,6 +174,7 @@ const el = {
   setPriceBtn: document.getElementById("setPriceBtn"),
   setColorBtn: document.getElementById("setColorBtn"),
   setColorAllBtn: document.getElementById("setColorAllBtn"),
+  pickColorBtn: document.getElementById("pickColorBtn"),
   colorPicker: document.getElementById("colorPicker"),
   lightingModesBlock: document.getElementById("lightingModesBlock"),
   lightingToggleBtn: document.getElementById("lightingToggleBtn"),
@@ -726,7 +727,7 @@ function applyAdminStatsView() {
   }), "No climate data for selected period.");
 
   const purchasesSeries = bucketByDate(purchases, () => 1, { mode: "day" });
-  const purchasesMeta = drawSimpleBars(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "#3f7edb", "");
+  const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Purchases");
 
   const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0), { mode: "line" });
   const revenueMeta = drawSimpleLine(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
@@ -3032,10 +3033,11 @@ function wireEvents() {
   el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
   el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
 
-  if (el.colorPicker) {
-    el.colorPicker.addEventListener("click", () => {
+  if (el.pickColorBtn && el.colorPicker) {
+    el.pickColorBtn.addEventListener("click", () => {
       openColorPickerModal();
     });
+
     el.colorPicker.addEventListener("input", () => {
       setRgbFieldsFromHex(el.colorPicker.value || "#000000");
     });

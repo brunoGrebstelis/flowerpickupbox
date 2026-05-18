@@ -254,6 +254,7 @@ body {
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
+  padding-right: 0;
 }
 
 .stats-custom-range input,
@@ -263,6 +264,8 @@ body {
   min-width: 0;
   display: block;
   box-sizing: border-box;
+  margin: 0;
+  overflow: hidden;
 }
 
 .stats-period-panel label,
@@ -271,6 +274,15 @@ body {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+#statsCustomFrom,
+#statsCustomTo,
+#statsPeriodSelect {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
 }
 
 #colorPicker {

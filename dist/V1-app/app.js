@@ -127,6 +127,7 @@ const state = {
     purchases: [],
     climate: [],
   },
+  latestRenderedStatsSignature: "",
   chartMeta: {
     purchasesByDay: [],
     revenueByDay: [],
@@ -173,7 +174,6 @@ const el = {
   setPriceBtn: document.getElementById("setPriceBtn"),
   setColorBtn: document.getElementById("setColorBtn"),
   setColorAllBtn: document.getElementById("setColorAllBtn"),
-  pickColorBtn: document.getElementById("pickColorBtn"),
   colorPicker: document.getElementById("colorPicker"),
   lightingModesBlock: document.getElementById("lightingModesBlock"),
   lightingToggleBtn: document.getElementById("lightingToggleBtn"),
@@ -289,67 +289,6 @@ function setChartVisibility(mode = "") {
     const card = el.revenueChart.closest(".chart-card");
     if (card) card.hidden = mode !== "revenue";
   }
-}
-
-function ensureColorPickerModal() {
-  let modal = document.getElementById("colorPickerModal");
-  if (modal) return modal;
-
-  modal = document.createElement("div");
-  modal.id = "colorPickerModal";
-  modal.className = "color-picker-modal";
-  modal.hidden = true;
-  modal.innerHTML = `
-    <div class="color-picker-dialog simple-frame" role="dialog" aria-modal="true" aria-label="Colors frame">
-      <h3>Colors frame</h3>
-      <input id="colorPickerModalInput" type="color" value="#ffffff" />
-      <div class="color-picker-actions">
-        <button id="colorPickerCancelBtn" class="btn" type="button">Cancel</button>
-        <button id="colorPickerOkBtn" class="btn btn-primary" type="button">Set</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  const cancelBtn = modal.querySelector("#colorPickerCancelBtn");
-  const okBtn = modal.querySelector("#colorPickerOkBtn");
-  const input = modal.querySelector("#colorPickerModalInput");
-
-  const close = () => {
-    modal.hidden = true;
-    state.colorPickerModalOpen = false;
-  };
-
-  cancelBtn?.addEventListener("click", () => {
-    const original = String(modal.dataset.originalColor || "").trim();
-    if (original && input) {
-      input.value = original;
-      if (el.colorPicker) {
-        el.colorPicker.value = original;
-      }
-    }
-    close();
-  });
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) close();
-  });
-
-  okBtn?.addEventListener("click", () => {
-    const value = String(input?.value || "#000000").replace("#", "");
-    if (value.length !== 6) return close();
-    if (Number.isInteger(parseInt(value.slice(0, 2), 16))
-      && Number.isInteger(parseInt(value.slice(2, 4), 16))
-      && Number.isInteger(parseInt(value.slice(4, 6), 16))) {
-      const hex = `#${value}`;
-      setRgbFieldsFromHex(hex);
-      if (el.colorPicker) {
-        el.colorPicker.value = hex;
-      }
-    }
-    close();
-  });
-
-  return modal;
 }
 
 function openColorPickerModal() {
@@ -726,6 +665,19 @@ function applyAdminStatsView() {
   const purchases = (state.latestStatsRaw.purchases || []).filter((x) => inPeriod(x.purchased_at || x.created_at));
   const climate = (state.latestStatsRaw.climate || []).filter((x) => inPeriod(x.recorded_at || x.created_at));
 
+  const nextSignature = JSON.stringify({
+    period,
+    purchasesCount: purchases.length,
+    climateCount: climate.length,
+    purchaseTail: purchases.slice(-20).map((p) => [p.purchase_log_id || p.id || null, p.purchased_at || p.created_at || null, Number(p.amount || 0)]),
+    climateTail: climate.slice(-20).map((c) => [c.climate_log_id || c.id || null, c.recorded_at || c.created_at || null, Number(c.temperature || 0), Number(c.humidity || 0)]),
+  });
+
+  if (state.latestRenderedStatsSignature && state.latestRenderedStatsSignature === nextSignature) {
+    return;
+  }
+  state.latestRenderedStatsSignature = nextSignature;
+
   const totalRevenue = purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   if (el.adminStats) {
@@ -1089,7 +1041,6 @@ function syncBusyUi() {
     el.setPriceBtn,
     el.setColorBtn,
     el.setColorAllBtn,
-    el.pickColorBtn,
     el.setTempBtn,
     el.toggleOpModeBtn,
     el.lightingToggleBtn,
@@ -2686,6 +2637,7 @@ async function loadAdminStats(machineId) {
 
   state.latestStatsRaw.purchases = purchases;
   state.latestStatsRaw.climate = climate;
+  state.latestRenderedStatsSignature = "";
 
   if (el.adminStatsDetails) {
     el.adminStatsDetails.hidden = false;
@@ -3080,18 +3032,10 @@ function wireEvents() {
   el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
   el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
 
-  if (el.pickColorBtn && el.colorPicker) {
-    el.pickColorBtn.addEventListener("click", () => {
-      const r = Number(el.colorR.value);
-      const g = Number(el.colorG.value);
-      const b = Number(el.colorB.value);
-      const currentHex = [r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
-        ? `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`
-        : (el.colorPicker?.value || "#ffffff");
-      el.colorPicker.value = currentHex;
+  if (el.colorPicker) {
+    el.colorPicker.addEventListener("click", () => {
       openColorPickerModal();
     });
-
     el.colorPicker.addEventListener("input", () => {
       setRgbFieldsFromHex(el.colorPicker.value || "#000000");
     });

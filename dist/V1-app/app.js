@@ -255,13 +255,6 @@ function setRgbFieldsFromHex(hex) {
 
 function openNativeColorPicker(inputEl) {
   if (!inputEl) return;
-  if (el.colorPicker) {
-    el.colorPicker.hidden = false;
-    el.colorPicker.style.position = "fixed";
-    el.colorPicker.style.left = "-9999px";
-    el.colorPicker.style.opacity = "0";
-    el.colorPicker.style.pointerEvents = "none";
-  }
   try {
     if (typeof inputEl.showPicker === "function") {
       inputEl.showPicker();
@@ -360,19 +353,17 @@ function ensureColorPickerModal() {
 }
 
 function openColorPickerModal() {
-  const modal = ensureColorPickerModal();
-  const input = el.colorPicker || modal.querySelector("#colorPickerModalInput");
+  const input = el.colorPicker;
   const r = Number(el.colorR.value);
   const g = Number(el.colorG.value);
   const b = Number(el.colorB.value);
   const currentHex = [r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
     ? `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`
     : (el.colorPicker?.value || "#ffffff");
-  if (input) input.value = currentHex;
-  modal.dataset.originalColor = currentHex;
-  modal.hidden = false;
-  state.colorPickerModalOpen = true;
-  openNativeColorPicker(input);
+  if (input) {
+    input.value = currentHex;
+    openNativeColorPicker(input);
+  }
 }
 
 function getSignedInUserLabel() {
@@ -783,7 +774,7 @@ function applyAdminStatsView() {
   }), "No climate data for selected period.");
 
   const purchasesSeries = bucketByDate(purchases, () => 1, { mode: "day" });
-  const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Purchases");
+  const purchasesMeta = drawSimpleBars(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "#3f7edb", "");
 
   const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0), { mode: "line" });
   const revenueMeta = drawSimpleLine(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
@@ -3091,6 +3082,13 @@ function wireEvents() {
 
   if (el.pickColorBtn && el.colorPicker) {
     el.pickColorBtn.addEventListener("click", () => {
+      const r = Number(el.colorR.value);
+      const g = Number(el.colorG.value);
+      const b = Number(el.colorB.value);
+      const currentHex = [r, g, b].every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
+        ? `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`
+        : (el.colorPicker?.value || "#ffffff");
+      el.colorPicker.value = currentHex;
       openColorPickerModal();
     });
 

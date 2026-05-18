@@ -252,6 +252,8 @@ body {
   gap: 6px;
   width: 100%;
   min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .stats-custom-range input,
@@ -260,12 +262,37 @@ body {
   max-width: 100%;
   min-width: 0;
   display: block;
+  box-sizing: border-box;
 }
 
 .stats-period-panel label,
 .stats-custom-range label {
   display: block;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#colorPicker {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+}
+
+#colorPicker::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+#colorPicker::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
 }
 
 .chart-card {

@@ -291,7 +291,6 @@ function setChartVisibility(mode = "", options = {}) {
     const card = el.purchasesChart.closest(".chart-card");
     if (card) {
       card.hidden = false;
-      card.classList.toggle("chart-card-active", mode === "purchases");
       if (mode === "purchases") {
         targetCard = card;
       }
@@ -301,18 +300,10 @@ function setChartVisibility(mode = "", options = {}) {
     const card = el.revenueChart.closest(".chart-card");
     if (card) {
       card.hidden = false;
-      card.classList.toggle("chart-card-active", mode === "revenue");
       if (mode === "revenue") {
         targetCard = card;
       }
     }
-  }
-
-  if (el.adminStats) {
-    const buttons = Array.from(el.adminStats.querySelectorAll(".stats-row-button"));
-    buttons.forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.chartMode === mode);
-    });
   }
 
   if (Boolean(options?.scroll) && targetCard) {

@@ -817,14 +817,9 @@ function applyAdminStatsView() {
     ];
 
     rows.forEach((rowDef) => {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "stats-row-button";
-      row.dataset.chartMode = rowDef.chartMode;
-      row.innerHTML = `<div class="info-item"><div class="info-label">${rowDef.label}</div><div class="info-value">${rowDef.value}</div></div>`;
-      row.addEventListener("click", () => {
-        setChartVisibility(rowDef.chartMode, { scroll: true });
-      });
+      const row = document.createElement("div");
+      row.className = "info-item";
+      row.innerHTML = `<div class="info-label">${rowDef.label}</div><div class="info-value">${rowDef.value}</div>`;
       el.adminStats.appendChild(row);
     });
   }

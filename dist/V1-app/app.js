@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   authRefreshToken: "authRefreshToken",
   authExpiresAt: "authExpiresAt",
   authEmail: "authEmail",
+  authPassword: "authPassword",
+  authSignedOut: "authSignedOut",
 };
 
 const COMMAND_IDS = {
@@ -278,18 +280,45 @@ function closeStatsPeriodPanel() {
   }
 }
 
-function setChartVisibility(mode = "") {
+function setChartVisibility(mode = "", options = {}) {
   state.stats.activeChart = mode;
   if (!el.chartGrid) return;
   el.chartGrid.hidden = false;
 
+  let targetCard = null;
+
   if (el.purchasesChart) {
     const card = el.purchasesChart.closest(".chart-card");
-    if (card) card.hidden = false;
+    if (card) {
+      card.hidden = false;
+      card.classList.toggle("chart-card-active", mode === "purchases");
+      if (mode === "purchases") {
+        targetCard = card;
+      }
+    }
   }
   if (el.revenueChart) {
     const card = el.revenueChart.closest(".chart-card");
-    if (card) card.hidden = false;
+    if (card) {
+      card.hidden = false;
+      card.classList.toggle("chart-card-active", mode === "revenue");
+      if (mode === "revenue") {
+        targetCard = card;
+      }
+    }
+  }
+
+  if (el.adminStats) {
+    const buttons = Array.from(el.adminStats.querySelectorAll(".stats-row-button"));
+    buttons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.chartMode === mode);
+    });
+  }
+
+  if (Boolean(options?.scroll) && targetCard) {
+    window.requestAnimationFrame(() => {
+      targetCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
   }
 }
 
@@ -800,9 +829,10 @@ function applyAdminStatsView() {
       const row = document.createElement("button");
       row.type = "button";
       row.className = "stats-row-button";
+      row.dataset.chartMode = rowDef.chartMode;
       row.innerHTML = `<div class="info-item"><div class="info-label">${rowDef.label}</div><div class="info-value">${rowDef.value}</div></div>`;
       row.addEventListener("click", () => {
-        setChartVisibility(rowDef.chartMode);
+        setChartVisibility(rowDef.chartMode, { scroll: true });
       });
       el.adminStats.appendChild(row);
     });
@@ -846,6 +876,8 @@ function applyAdminStatsView() {
     revenueSeries.keys,
     (dayKey) => setPurchaseLogsByBucket(dayKey, revenueSeries.bucketType || "day")
   );
+
+  setChartVisibility(state.stats.activeChart || "revenue");
 }
 
 function drawSimplePie(canvas, labels, values, title = "") {
@@ -939,7 +971,6 @@ function clearAuthStorage() {
   localStorage.removeItem(STORAGE_KEYS.authAccessToken);
   localStorage.removeItem(STORAGE_KEYS.authRefreshToken);
   localStorage.removeItem(STORAGE_KEYS.authExpiresAt);
-  localStorage.removeItem(STORAGE_KEYS.authEmail);
 }
 
 function rememberAuth(authResult, fallbackEmail = "") {
@@ -2420,6 +2451,38 @@ async function restoreAuthFromStorageAndRefreshIfNeeded() {
   return true;
 }
 
+async function tryAutoSignInWithSavedCredentials() {
+  if (!state.authConfig.enabled) return false;
+  if (localStorage.getItem(STORAGE_KEYS.authSignedOut) === "1") return false;
+
+  const email = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim().toLowerCase();
+  const password = String(localStorage.getItem(STORAGE_KEYS.authPassword) || "");
+  if (!email || !password) return false;
+
+  setAuthStatus("Signing in automatically...", true);
+  const signInResult = await signInWithCognito(email, password);
+  if (signInResult?.challengeName === "NEW_PASSWORD_REQUIRED") {
+    state.auth.pendingChallenge = {
+      challengeName: "NEW_PASSWORD_REQUIRED",
+      session: signInResult.session || "",
+      username: signInResult.username || email,
+      email,
+    };
+    setNewPasswordChallengeVisible(true);
+    setAuthStatus("First sign-in requires password change. Enter a new password below.", false);
+    setStatus("First sign-in requires password change. Enter and confirm new password.", false);
+    syncBusyUi();
+    return false;
+  }
+
+  await bootstrapAuthenticatedApp();
+  localStorage.removeItem(STORAGE_KEYS.authSignedOut);
+  if (el.authPassword) {
+    el.authPassword.value = "";
+  }
+  return true;
+}
+
 async function restoreMachineSelectionAndAutoloadDashboard(preferredMachineIdRaw = null) {
   const storedMachineIdRaw = preferredMachineIdRaw ?? localStorage.getItem(STORAGE_KEYS.selectedMachineId);
   if (!storedMachineIdRaw) return;
@@ -2506,6 +2569,8 @@ async function handleSignIn() {
 
   setNewPasswordChallengeVisible(false);
   await bootstrapAuthenticatedApp();
+  localStorage.setItem(STORAGE_KEYS.authPassword, password);
+  localStorage.removeItem(STORAGE_KEYS.authSignedOut);
   if (el.authPassword) {
     el.authPassword.value = "";
   }
@@ -2544,12 +2609,15 @@ async function handleSetNewPassword() {
   }
 
   await bootstrapAuthenticatedApp();
+  localStorage.setItem(STORAGE_KEYS.authPassword, newPassword);
+  localStorage.removeItem(STORAGE_KEYS.authSignedOut);
 }
 
 function handleSignOut() {
   clearAuthStorage();
   resetAuthState();
   setNewPasswordChallengeVisible(false);
+  localStorage.setItem(STORAGE_KEYS.authSignedOut, "1");
 
   state.users = [];
   state.machines = [];
@@ -3306,6 +3374,9 @@ async function init() {
   if (el.authEmail) {
     el.authEmail.value = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim();
   }
+  if (el.authPassword) {
+    el.authPassword.value = String(localStorage.getItem(STORAGE_KEYS.authPassword) || "");
+  }
   setNewPasswordChallengeVisible(false);
 
   if (location.protocol === "file:") {
@@ -3329,9 +3400,19 @@ async function init() {
         setAuthLayoutVisible(false);
       }
     } else {
-      setStatus("Sign in to continue.", true);
-      setAuthStatus("Not signed in");
-      setAuthLayoutVisible(false);
+      try {
+        const autoSigned = await tryAutoSignInWithSavedCredentials();
+        if (!autoSigned) {
+          setStatus("Sign in to continue.", true);
+          setAuthStatus("Not signed in");
+          setAuthLayoutVisible(false);
+        }
+      } catch (autoError) {
+        localStorage.removeItem(STORAGE_KEYS.authPassword);
+        setStatus(`Auto sign-in failed: ${autoError.message}`);
+        setAuthStatus("Not signed in");
+        setAuthLayoutVisible(false);
+      }
     }
   } catch (e) {
     setStatus(`Failed to initialize frontend: ${e.message}`);

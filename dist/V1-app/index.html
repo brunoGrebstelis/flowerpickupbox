@@ -6,7 +6,7 @@
   <title>Flower Pickup Box Control</title>
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
-  <link rel="stylesheet" href="./styles.css?v=20260518-5" />
+  <link rel="stylesheet" href="./styles.css?v=20260518-6" />
 </head>
 <body>
   <main class="app-shell">
@@ -167,10 +167,6 @@
           <p class="placeholder">Only shown for admin users.</p>
         </div>
         <div class="admin-stats-details" id="adminStatsDetails" hidden>
-          <button id="toggleClimateDetailsBtn" class="btn collapse-toggle" type="button">Climate details</button>
-          <div id="climateDetailsContent" class="collapse-content" hidden>
-            <div id="adminClimateStats" class="info-list"></div>
-          </div>
           <div class="chart-grid" id="chartGrid" hidden>
             <article class="chart-card">
               <h3 id="chartTitle">Purchases distribution</h3>
@@ -180,6 +176,10 @@
               <h3 id="chartTitle2">Revenue distribution (EUR)</h3>
               <canvas id="revenueChart" height="170"></canvas>
             </article>
+          </div>
+          <button id="toggleClimateDetailsBtn" class="btn collapse-toggle" type="button">Climate details</button>
+          <div id="climateDetailsContent" class="collapse-content" hidden>
+            <div id="adminClimateStats" class="info-list"></div>
           </div>
         </div>
       </article>
@@ -247,6 +247,6 @@
     </section>
   </main>
 
-  <script src="./app.js?v=20260518-5"></script>
+  <script src="./app.js?v=20260518-6"></script>
 </body>
 </html>

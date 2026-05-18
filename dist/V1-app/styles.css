@@ -334,10 +334,23 @@ body {
   padding: 8px;
   background: #fff;
   text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .stats-row-button:hover {
   border-color: #9fb0d6;
+}
+
+.stats-row-button.active {
+  border-color: #5a7ed2;
+  background: #eef4ff;
+  box-shadow: 0 0 0 2px rgba(90, 126, 210, 0.15);
+}
+
+.chart-card.chart-card-active {
+  border-color: #5a7ed2;
+  box-shadow: 0 0 0 2px rgba(90, 126, 210, 0.12);
 }
 
 .color-picker-modal {

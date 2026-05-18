@@ -281,15 +281,15 @@ function closeStatsPeriodPanel() {
 function setChartVisibility(mode = "") {
   state.stats.activeChart = mode;
   if (!el.chartGrid) return;
-  el.chartGrid.hidden = !mode;
+  el.chartGrid.hidden = false;
 
   if (el.purchasesChart) {
     const card = el.purchasesChart.closest(".chart-card");
-    if (card) card.hidden = mode !== "purchases";
+    if (card) card.hidden = false;
   }
   if (el.revenueChart) {
     const card = el.revenueChart.closest(".chart-card");
-    if (card) card.hidden = mode !== "revenue";
+    if (card) card.hidden = false;
   }
 }
 
@@ -614,6 +614,23 @@ function setPurchaseLogsByBucket(bucketKey, bucketType = "day") {
   setStatus(`Showing ${filtered.length} purchases for ${bucketKey}.`, true);
 }
 
+function setPurchaseLogsByLocker(lockerKey) {
+  const all = state.latestStatsRaw.purchases || [];
+  const key = String(lockerKey || "").trim();
+  if (!key) {
+    renderPurchaseLogs(all);
+    setStatus(`Showing ${all.length} purchases.`, true);
+    return;
+  }
+
+  const filtered = all.filter((p) => {
+    const lockerNumber = p.locker_number ?? p.locker_id;
+    return String(lockerNumber) === key;
+  });
+  renderPurchaseLogs(filtered);
+  setStatus(`Showing ${filtered.length} purchases for locker ${key}.`, true);
+}
+
 function bindCanvasPointClicks(canvas, chartMeta, dayKeys, onPick) {
   if (!canvas || !dayKeys?.length) return;
   canvas.onclick = (event) => {
@@ -663,6 +680,28 @@ function bindCanvasPointClicks(canvas, chartMeta, dayKeys, onPick) {
     const dayKey = dayKeys[pickedIndex];
     if (!dayKey) return;
     onPick(dayKey);
+  };
+}
+
+function aggregateLockerRevenue(purchases) {
+  const byLocker = new Map();
+  (purchases || []).forEach((p) => {
+    const lockerNumber = p.locker_number ?? p.locker_id;
+    if (lockerNumber === null || lockerNumber === undefined || lockerNumber === "") return;
+    const key = String(lockerNumber);
+    const amount = Number(p.amount || 0);
+    byLocker.set(key, (byLocker.get(key) || 0) + (Number.isFinite(amount) ? amount : 0));
+  });
+
+  const entries = Array.from(byLocker.entries())
+    .map(([locker, revenue]) => ({ locker, revenue: Number(revenue.toFixed(2)) }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
+
+  return {
+    keys: entries.map((x) => x.locker),
+    labels: entries.map((x) => `L${x.locker}`),
+    values: entries.map((x) => x.revenue),
   };
 }
 
@@ -785,8 +824,8 @@ function applyAdminStatsView() {
     max_humidity: Number(max(hums).toFixed(2)),
   }), "No climate data for selected period.");
 
-  const purchasesSeries = bucketByDate(purchases, () => 1, { mode: "day" });
-  const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Purchases");
+  const purchasesSeries = aggregateLockerRevenue(purchases);
+  const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Revenue share by locker");
 
   const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0), { mode: "line" });
   const revenueMeta = drawSimpleLine(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
@@ -798,7 +837,7 @@ function applyAdminStatsView() {
     el.purchasesChart,
     purchasesMeta,
     purchasesSeries.keys,
-    (dayKey) => setPurchaseLogsByBucket(dayKey, purchasesSeries.bucketType || "day")
+    (lockerKey) => setPurchaseLogsByLocker(lockerKey)
   );
 
   bindCanvasPointClicks(

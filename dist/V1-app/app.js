@@ -923,11 +923,6 @@ function drawSimplePie(canvas, labels, values, title = "") {
   ctx.font = "12px Segoe UI";
   ctx.fillText(title, 18, 16);
 
-  ctx.fillStyle = "#60708d";
-  ctx.font = "11px Segoe UI";
-  ctx.fillText("X: time buckets", 18, height - 18);
-  ctx.fillText("Y: share (%)", 18, height - 6);
-
   const legendX = 170;
   let legendY = 28;
   slices.slice(0, 6).forEach((slice, i) => {

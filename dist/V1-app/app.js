@@ -10,7 +10,6 @@ const STORAGE_KEYS = {
   authExpiresAt: "authExpiresAt",
   authEmail: "authEmail",
   authPassword: "authPassword",
-  authSignedOut: "authSignedOut",
 };
 
 const COMMAND_IDS = {
@@ -2438,7 +2437,6 @@ async function restoreAuthFromStorageAndRefreshIfNeeded() {
 
 async function tryAutoSignInWithSavedCredentials() {
   if (!state.authConfig.enabled) return false;
-  if (localStorage.getItem(STORAGE_KEYS.authSignedOut) === "1") return false;
 
   const email = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim().toLowerCase();
   const password = String(localStorage.getItem(STORAGE_KEYS.authPassword) || "");
@@ -2461,7 +2459,6 @@ async function tryAutoSignInWithSavedCredentials() {
   }
 
   await bootstrapAuthenticatedApp();
-  localStorage.removeItem(STORAGE_KEYS.authSignedOut);
   if (el.authPassword) {
     el.authPassword.value = "";
   }
@@ -2567,7 +2564,6 @@ async function handleSignIn() {
   setNewPasswordChallengeVisible(false);
   await bootstrapAuthenticatedApp();
   localStorage.setItem(STORAGE_KEYS.authPassword, password);
-  localStorage.removeItem(STORAGE_KEYS.authSignedOut);
   if (el.authPassword) {
     el.authPassword.value = "";
   }
@@ -2607,14 +2603,12 @@ async function handleSetNewPassword() {
 
   await bootstrapAuthenticatedApp();
   localStorage.setItem(STORAGE_KEYS.authPassword, newPassword);
-  localStorage.removeItem(STORAGE_KEYS.authSignedOut);
 }
 
 function handleSignOut() {
   clearAuthStorage();
   resetAuthState();
   setNewPasswordChallengeVisible(false);
-  localStorage.setItem(STORAGE_KEYS.authSignedOut, "1");
 
   state.users = [];
   state.machines = [];
@@ -3386,7 +3380,6 @@ async function init() {
     if (restored) {
       try {
         await bootstrapAuthenticatedApp();
-        localStorage.removeItem(STORAGE_KEYS.authSignedOut);
       } catch (e) {
         // Stored token can be invalid/expired or rejected by authorizer.
         // Fall back to clean signed-out state instead of hard init failure.

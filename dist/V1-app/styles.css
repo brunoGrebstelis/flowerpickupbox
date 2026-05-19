@@ -865,6 +865,11 @@ input.failed {
   gap: 10px;
 }
 
+.stats-export-btn {
+  width: auto;
+  justify-self: start;
+}
+
 .chart-grid {
   display: grid;
   gap: 8px;

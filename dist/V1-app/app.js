@@ -206,6 +206,7 @@ const el = {
   statsCustomRange: document.getElementById("statsCustomRange"),
   statsCustomFrom: document.getElementById("statsCustomFrom"),
   statsCustomTo: document.getElementById("statsCustomTo"),
+  downloadPurchasesCsvBtn: document.getElementById("downloadPurchasesCsvBtn"),
   activityLogs: document.getElementById("activityLogs"),
   purchaseLogs: document.getElementById("purchaseLogs"),
 };
@@ -762,6 +763,83 @@ function dateFilterForPeriod(period) {
   };
 }
 
+function csvEscape(value) {
+  const raw = value === null || value === undefined ? "" : String(value);
+  if (/[",\r\n]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+function formatCsvDateAndTime(value) {
+  const dt = parseDateMaybe(value);
+  if (!dt) {
+    return { date: "", time: "" };
+  }
+  const pad = (n) => String(n).padStart(2, "0");
+  return {
+    date: `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`,
+    time: `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`,
+  };
+}
+
+function downloadPurchasesCsv() {
+  if (!state.auth.isAuthenticated || state.selectedRole !== "admin") {
+    setStatus("CSV download is available only for admin users.");
+    return;
+  }
+
+  const period = String(el.statsPeriodSelect?.value || "this_month");
+  const inPeriod = dateFilterForPeriod(period);
+  const purchases = (state.latestStatsRaw.purchases || [])
+    .filter((x) => inPeriod(x.purchased_at || x.created_at))
+    .slice()
+    .sort((a, b) => {
+      const ta = parseDateMaybe(a.purchased_at || a.created_at)?.getTime() || 0;
+      const tb = parseDateMaybe(b.purchased_at || b.created_at)?.getTime() || 0;
+      return ta - tb;
+    });
+
+  if (!purchases.length) {
+    setStatus("No purchases found for selected period.");
+    return;
+  }
+
+  const rows = purchases.map((purchase) => {
+    const lockerNumber = purchase.locker_number ?? purchase.locker_id ?? "";
+    const { date, time } = formatCsvDateAndTime(purchase.purchased_at || purchase.created_at);
+    const amount = Number(purchase.amount);
+    const price = Number.isFinite(amount) ? amount.toFixed(2) : "";
+    return [
+      csvEscape(lockerNumber),
+      csvEscape(date),
+      csvEscape(time),
+      csvEscape(price),
+    ].join(",");
+  });
+
+  const csv = ["Locker number,Date,Time,Price", ...rows].join("\r\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const periodSafe = period.replace(/[^a-z0-9_-]/gi, "_");
+  const machineSafe = state.selectedMachineId ? `machine_${state.selectedMachineId}` : "machine";
+  const filename = `purchases_${machineSafe}_${periodSafe}_${stamp}.csv`;
+
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+
+  setStatus(`Downloaded CSV with ${purchases.length} purchases.`, true);
+}
+
 function applyAdminStatsView() {
   updateStatsPeriodButtonLabel();
 
@@ -1154,6 +1232,7 @@ function syncBusyUi() {
     el.lightingToggleBtn,
     el.machineCommandsToggleBtn,
     el.toggleClimateDetailsBtn,
+    el.downloadPurchasesCsvBtn,
   ];
 
   staticButtons
@@ -1197,6 +1276,9 @@ function syncBusyUi() {
 
   if (el.statsPeriodToggleBtn) {
     el.statsPeriodToggleBtn.disabled = busy || !canUseApp || state.selectedRole !== "admin";
+  }
+  if (el.downloadPurchasesCsvBtn) {
+    el.downloadPurchasesCsvBtn.disabled = busy || !canUseApp || state.selectedRole !== "admin";
   }
 }
 
@@ -3278,6 +3360,10 @@ function wireEvents() {
         }
       }
     });
+  }
+
+  if (el.downloadPurchasesCsvBtn) {
+    el.downloadPurchasesCsvBtn.addEventListener("click", downloadPurchasesCsv);
   }
 
   document.addEventListener("click", (event) => {

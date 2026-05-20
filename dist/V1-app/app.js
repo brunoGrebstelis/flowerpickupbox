@@ -52,6 +52,7 @@ const HEADLIGHT_MODES = [
 
 const VERIFICATION_REFRESH_DELAYS_MS = [150, 200, 250];
 const MAX_VERIFICATION_SEND_ATTEMPTS = VERIFICATION_REFRESH_DELAYS_MS.length;
+const OPTIMISTIC_ACTIVITY_SUCCESS_TTL_MS = 120000;
 
 function resolveInitialApiBaseUrl() {
   const fromQuery = new URLSearchParams(window.location.search).get("api");
@@ -109,6 +110,7 @@ const state = {
   pendingControlKeys: new Set(),
   failedControlKeys: new Set(),
   pendingVerifications: [],
+  optimisticSuccessfulRequestIds: new Map(),
   pendingLockerPriceById: new Map(),
   pendingLockerColorById: new Map(),
   fanStates: {
@@ -1443,6 +1445,29 @@ function queueVerification(item) {
   state.pendingVerifications.push(item);
 }
 
+function pruneOptimisticSuccessfulRequests() {
+  const now = Date.now();
+  for (const [requestId, recordedAt] of state.optimisticSuccessfulRequestIds.entries()) {
+    if (!requestId || !Number.isFinite(recordedAt) || (now - recordedAt) > OPTIMISTIC_ACTIVITY_SUCCESS_TTL_MS) {
+      state.optimisticSuccessfulRequestIds.delete(requestId);
+    }
+  }
+}
+
+function markOptimisticSuccessfulRequest(requestId) {
+  const token = String(requestId || "").trim();
+  if (!token) return;
+  pruneOptimisticSuccessfulRequests();
+  state.optimisticSuccessfulRequestIds.set(token, Date.now());
+}
+
+function isOptimisticSuccessfulRequest(requestId) {
+  const token = String(requestId || "").trim();
+  if (!token) return false;
+  pruneOptimisticSuccessfulRequests();
+  return state.optimisticSuccessfulRequestIds.has(token);
+}
+
 async function processPendingVerifications() {
   if (!state.pendingVerifications.length) return;
 
@@ -1457,6 +1482,7 @@ async function processPendingVerifications() {
       statusLabel = "Command",
       pendingKeys = [],
       attempts = 1,
+      requestId = null,
     } = item;
     const keys = Array.isArray(pendingKeys) ? pendingKeys : [pendingKeys];
     const attemptCount = Number.isInteger(Number(attempts)) && Number(attempts) > 0
@@ -1470,6 +1496,7 @@ async function processPendingVerifications() {
       if (commandId === COMMAND_IDS.SET_LOCKER_PRICE && lockerId != null) {
         state.pendingLockerPriceById.delete(lockerId);
       }
+      markOptimisticSuccessfulRequest(requestId);
       setPendingControls(keys, false);
       setFailedControls(keys, false);
       scheduleDebouncedDashboardRefresh({
@@ -1901,7 +1928,8 @@ function renderActivityLogs(logs) {
     actionCell.textContent = buildCompactActivityText(log, activityData);
     const activityResult = String(activityData.result || "").trim().toLowerCase();
     const activityPhase = String(activityData.phase || "").trim().toLowerCase();
-    if (coerceBoolean(log.successful)) {
+    const optimisticSuccess = isOptimisticSuccessfulRequest(activityData.request_id);
+    if (coerceBoolean(log.successful) || optimisticSuccess) {
       actionCell.classList.add("activity-action-success");
     } else if (activityResult === "failed" || activityResult === "error" || activityPhase === "publish_failed") {
       actionCell.classList.add("activity-action-failed");
@@ -2464,6 +2492,7 @@ async function sendCommandAndDebouncedRefresh(
   const initialAttempt = Number.isInteger(Number(options.attempts)) && Number(options.attempts) > 0
     ? Number(options.attempts)
     : 1;
+  const rawRequestId = String(response?.request_id || "").trim();
 
   if (options.verifyAfterRefresh) {
     queueVerification({
@@ -2474,6 +2503,7 @@ async function sendCommandAndDebouncedRefresh(
       pendingKeys: keys,
       expected: options.expected,
       attempts: initialAttempt,
+      requestId: rawRequestId || null,
     });
     scheduleDebouncedDashboardRefresh({
       delayMs: getVerificationDelayMs(initialAttempt),
@@ -2485,7 +2515,7 @@ async function sendCommandAndDebouncedRefresh(
     });
   }
 
-  const requestId = response?.request_id ? ` request_id=${response.request_id}` : "";
+  const requestId = rawRequestId ? ` request_id=${rawRequestId}` : "";
   setStatus(`${statusLabel} command sent.${requestId}`, true);
   return response;
 }

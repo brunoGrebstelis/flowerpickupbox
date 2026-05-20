@@ -1472,6 +1472,9 @@ async function processPendingVerifications() {
       }
       setPendingControls(keys, false);
       setFailedControls(keys, false);
+      scheduleDebouncedDashboardRefresh({
+        delayMs: 0,
+      });
       continue;
     }
 
@@ -1764,7 +1767,19 @@ function buildCompactActivityText(log, activityData) {
   const lockerId = Number.isInteger(lockerFromData)
     ? lockerFromData
     : (Number.isInteger(Number(log.locker_id)) ? Number(log.locker_id) : null);
-  const lockerPart = lockerId !== null ? ` L${lockerId}` : "";
+  const lockerNumberFromData = Number(activityData.locker_number);
+  const lockerNumberFromLog = Number(log.locker_number);
+  const mappedLocker = lockerId !== null
+    ? state.lockers.find((locker) => Number(locker.locker_id) === lockerId) || null
+    : null;
+  const lockerNumber = Number.isInteger(lockerNumberFromData)
+    ? lockerNumberFromData
+    : (Number.isInteger(lockerNumberFromLog)
+      ? lockerNumberFromLog
+      : (mappedLocker && Number.isInteger(Number(mappedLocker.locker_number))
+        ? Number(mappedLocker.locker_number)
+        : null));
+  const lockerPart = lockerNumber !== null ? ` L${lockerNumber}` : "";
 
   const expected = activityData.expected_change && typeof activityData.expected_change === "object"
     ? activityData.expected_change

@@ -894,6 +894,16 @@ input.failed {
   display: block;
 }
 
+.activity-action-success {
+  color: #1a7f3a !important;
+  font-weight: 700;
+}
+
+.activity-action-failed {
+  color: #b7202e !important;
+  font-weight: 700;
+}
+
 .command-list {
   margin: 0;
   padding-left: 18px;

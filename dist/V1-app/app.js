@@ -333,6 +333,13 @@ function getSignedInUserLabel() {
   return [selected.name, selected.surname].map((x) => String(x || "").trim()).filter(Boolean).join(" ") || state.auth.email || "-";
 }
 
+function formatUserFullName(name, surname) {
+  const parts = [name, surname]
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(" ") : "";
+}
+
 function setAuthLayoutVisible(isAuthenticated) {
   if (el.signInCard) {
     el.signInCard.hidden = isAuthenticated;
@@ -1692,16 +1699,16 @@ function parseActivityData(raw) {
   }
 }
 
-function getUserDisplayName(userId) {
+function getUserDisplayName(userId, explicitName = "", explicitSurname = "") {
+  const explicit = formatUserFullName(explicitName, explicitSurname);
+  if (explicit) return explicit;
+
   if (!Number.isInteger(Number(userId))) return "System";
   const numericUserId = Number(userId);
   const user = state.users.find((item) => Number(item.user_id) === numericUserId);
-  if (!user) return `User #${numericUserId}`;
+  if (!user) return "Unknown user";
 
-  const parts = [user.name, user.surname]
-    .map((x) => String(x || "").trim())
-    .filter(Boolean);
-  return parts.length ? parts.join(" ") : `User #${numericUserId}`;
+  return formatUserFullName(user.name, user.surname) || "Unknown user";
 }
 
 function splitDisplayName(name) {
@@ -1868,7 +1875,7 @@ function renderActivityLogs(logs) {
 
     const whoCell = document.createElement("td");
     const userId = activityData.user_id ?? log.user_id;
-    const displayName = getUserDisplayName(userId);
+    const displayName = getUserDisplayName(userId, log.user_name, log.user_surname);
     const nameParts = splitDisplayName(displayName);
     whoCell.innerHTML = `<span class="who-name"><span class="who-first">${nameParts.first || ""}</span><span class="who-last">${nameParts.last || ""}</span></span>`;
 
@@ -1877,6 +1884,13 @@ function renderActivityLogs(logs) {
 
     const actionCell = document.createElement("td");
     actionCell.textContent = buildCompactActivityText(log, activityData);
+    const activityResult = String(activityData.result || "").trim().toLowerCase();
+    const activityPhase = String(activityData.phase || "").trim().toLowerCase();
+    if (coerceBoolean(log.successful)) {
+      actionCell.classList.add("activity-action-success");
+    } else if (activityResult === "failed" || activityResult === "error" || activityPhase === "publish_failed") {
+      actionCell.classList.add("activity-action-failed");
+    }
 
     row.appendChild(whoCell);
     row.appendChild(whenCell);
@@ -2612,7 +2626,8 @@ async function bootstrapAuthenticatedApp() {
   state.ui.machineCommandsCollapsed = true;
   state.ui.climateCollapsed = true;
   syncCollapsibleUi();
-  setAuthStatus(`Signed in as ${authUserEmail || `user #${authUserId}`}.`, true);
+  const signedInLabel = getSignedInUserLabel() || authUserEmail || "authenticated user";
+  setAuthStatus(`Signed in as ${signedInLabel}.`, true);
   syncBusyUi();
 }
 

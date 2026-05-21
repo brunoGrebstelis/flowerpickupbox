@@ -377,7 +377,16 @@ function setAuthLayoutVisible(isAuthenticated) {
 
 function parseDateMaybe(value) {
   if (!value) return null;
-  const dt = new Date(value);
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const hasExplicitTimezone = /(?:Z|[+\-]\d{2}:?\d{2})$/i.test(raw);
+  const looksLikeNaiveIsoDateTime = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?$/.test(raw);
+  const normalized = !hasExplicitTimezone && looksLikeNaiveIsoDateTime
+    ? `${raw.replace(" ", "T")}Z`
+    : raw;
+
+  const dt = new Date(normalized);
   if (Number.isNaN(dt.getTime())) return null;
   return dt;
 }
@@ -395,7 +404,9 @@ function updateTopMachineStrip() {
   const beatDate = parseDateMaybe(beatValue);
   const now = Date.now();
   const maxDelayMs = 10 * 60 * 1000;
-  const isFresh = Boolean(beatDate && (now - beatDate.getTime()) <= maxDelayMs);
+  const toleratedFutureSkewMs = 2 * 60 * 1000;
+  const beatAgeMs = beatDate ? (now - beatDate.getTime()) : Number.POSITIVE_INFINITY;
+  const isFresh = Boolean(beatDate && beatAgeMs <= maxDelayMs && beatAgeMs >= -toleratedFutureSkewMs);
 
   if (el.topHeartbeatDot) {
     el.topHeartbeatDot.classList.remove("heartbeat-ok", "heartbeat-bad", "heartbeat-unknown");

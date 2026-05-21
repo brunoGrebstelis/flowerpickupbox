@@ -870,6 +870,10 @@ input.failed {
   justify-self: start;
 }
 
+#downloadClimateCsvBtn {
+  margin-top: 8px;
+}
+
 .chart-grid {
   display: grid;
   gap: 8px;

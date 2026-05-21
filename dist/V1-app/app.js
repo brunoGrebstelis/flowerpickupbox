@@ -868,16 +868,19 @@ function applyAdminStatsView() {
 
   const period = (el.statsPeriodSelect?.value || "this_month");
   const inPeriod = dateFilterForPeriod(period);
+  const climateTime = (x) => x?.logged_at || x?.recorded_at || x?.created_at;
 
   const purchases = (state.latestStatsRaw.purchases || []).filter((x) => inPeriod(x.purchased_at || x.created_at));
-  const climate = (state.latestStatsRaw.climate || []).filter((x) => inPeriod(x.recorded_at || x.created_at));
+  const climate = (state.latestStatsRaw.climate || [])
+    .filter((x) => Number(x.sensor_id) === 1)
+    .filter((x) => inPeriod(climateTime(x)));
 
   const signature = JSON.stringify({
     period,
     purchasesLen: purchases.length,
     climateLen: climate.length,
     purchasesTail: purchases.slice(-30).map((x) => [x.purchase_log_id || x.id || null, x.purchased_at || x.created_at || null, Number(x.amount || 0)]),
-    climateTail: climate.slice(-30).map((x) => [x.climate_log_id || x.id || null, x.recorded_at || x.created_at || null, Number(x.temperature || 0), Number(x.humidity || 0)]),
+    climateTail: climate.slice(-30).map((x) => [x.climate_log_id || x.id || null, climateTime(x) || null, Number(x.temperature || 0), Number(x.humidity || 0)]),
   });
   if (state.chartRenderSignature === signature) {
     return;
@@ -889,7 +892,7 @@ function applyAdminStatsView() {
     purchasesCount: purchases.length,
     climateCount: climate.length,
     purchaseTail: purchases.slice(-20).map((p) => [p.purchase_log_id || p.id || null, p.purchased_at || p.created_at || null, Number(p.amount || 0)]),
-    climateTail: climate.slice(-20).map((c) => [c.climate_log_id || c.id || null, c.recorded_at || c.created_at || null, Number(c.temperature || 0), Number(c.humidity || 0)]),
+    climateTail: climate.slice(-20).map((c) => [c.climate_log_id || c.id || null, climateTime(c) || null, Number(c.temperature || 0), Number(c.humidity || 0)]),
   });
 
   if (state.latestRenderedStatsSignature && state.latestRenderedStatsSignature === nextSignature) {

@@ -1493,9 +1493,6 @@ async function processPendingVerifications() {
     const success = verificationMatchesExpected(actual, expected);
 
     if (success) {
-      if (commandId === COMMAND_IDS.SET_LOCKER_PRICE && lockerId != null) {
-        state.pendingLockerPriceById.delete(lockerId);
-      }
       markOptimisticSuccessfulRequest(requestId);
       setPendingControls(keys, false);
       setFailedControls(keys, false);

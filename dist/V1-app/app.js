@@ -3660,6 +3660,14 @@ function wireEvents() {
         el.statsPeriodSelect.dispatchEvent(new Event("change", { bubbles: true }));
         closeStatsPeriodPanel();
       } else {
+        if (nextValue === "custom") {
+          const picker = getStatsRangePickerInstance();
+          if (picker) {
+            closeStatsPeriodPanel();
+            picker.open();
+            return;
+          }
+        }
         closeStatsPeriodPanel();
       }
     });
@@ -3684,13 +3692,21 @@ function wireEvents() {
       if (el.statsPeriodSelect.value === "custom") {
         const picker = getStatsRangePickerInstance();
         if (picker) {
-          if (picker.isOpen) {
-            picker.close();
-            setStatsPeriodMenuVisible(true);
-          } else {
-            closeStatsPeriodPanel();
-            picker.open();
+          const hasFrom = String(el.statsCustomFrom?.value || "").trim().length > 0;
+          const hasTo = String(el.statsCustomTo?.value || "").trim().length > 0;
+          const hasCompleteRange = hasFrom && hasTo;
+
+          if (hasCompleteRange) {
+            if (picker.isOpen) {
+              picker.close();
+            }
+            const nextVisible = Boolean(el.statsPeriodMenu?.hidden);
+            setStatsPeriodMenuVisible(nextVisible);
+            return;
           }
+
+          closeStatsPeriodPanel();
+          picker.open();
           return;
         }
       }

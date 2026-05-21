@@ -924,7 +924,19 @@ input.failed {
 
 @media (max-width: 768px) {
   .flatpickr-calendar {
-    max-width: min(96vw, 360px);
+    width: min(98vw, 390px);
+    max-width: min(98vw, 390px);
+    left: 50% !important;
+    transform: translateX(-50%);
+  }
+
+  .flatpickr-current-month {
+    padding: 4px 8px 0 8px;
+  }
+
+  .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-current-month input.cur-year {
+    font-size: 14px;
   }
 }
 

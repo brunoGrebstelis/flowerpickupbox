@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260521-19" />
+  <link rel="stylesheet" href="./styles.css?v=20260521-20" />
 </head>
 <body>
   <main class="app-shell">
@@ -147,6 +147,13 @@
         <h2>Admin Statistics</h2>
         <div class="admin-stats-controls">
           <button id="statsPeriodToggleBtn" class="btn stats-period-title-btn" type="button">May 2026</button>
+          <div id="statsPeriodMenu" class="stats-period-menu" hidden>
+            <button class="btn stats-period-menu-item" type="button" data-period-value="this_month">This month</button>
+            <button class="btn stats-period-menu-item" type="button" data-period-value="last_month">Last month</button>
+            <button class="btn stats-period-menu-item" type="button" data-period-value="this_year">This year</button>
+            <button class="btn stats-period-menu-item" type="button" data-period-value="all_time">Total</button>
+            <button class="btn stats-period-menu-item" type="button" data-period-value="custom">Custom</button>
+          </div>
           <div id="statsPeriodPanel" class="stats-period-panel period-native-select-host">
             <label class="sr-only" for="statsPeriodSelect">Period</label>
             <select id="statsPeriodSelect">
@@ -255,6 +262,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260521-19"></script>
+  <script src="./app.js?v=20260521-20"></script>
 </body>
 </html>

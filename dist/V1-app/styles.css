@@ -892,8 +892,30 @@ input.failed {
 }
 
 .admin-stats-controls {
-  display: block;
+  display: grid;
+  gap: 8px;
+  position: relative;
   margin-bottom: 10px;
+}
+
+.stats-period-menu {
+  display: grid;
+  gap: 6px;
+}
+
+.stats-period-menu-item {
+  width: auto;
+  justify-self: start;
+  text-align: left;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.stats-period-menu-item.active {
+  background: #e8f0ff;
+  border-color: #a9bde7;
+  color: #24426f;
+  font-weight: 700;
 }
 
 .admin-stats-summary {
@@ -987,7 +1009,7 @@ input.failed {
   }
 
   .admin-stats-controls {
-    display: block;
+    display: grid;
   }
 
   .fan-button-row {

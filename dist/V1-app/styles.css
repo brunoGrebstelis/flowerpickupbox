@@ -924,10 +924,19 @@ input.failed {
 
 @media (max-width: 768px) {
   .flatpickr-calendar {
-    width: min(98vw, 390px);
-    max-width: min(98vw, 390px);
+    max-width: min(96vw, 360px);
     left: 50% !important;
     transform: translateX(-50%);
+  }
+
+  .flatpickr-day {
+    height: 42px;
+    line-height: 42px;
+  }
+
+  .flatpickr-days,
+  .dayContainer {
+    min-height: 252px;
   }
 
   .flatpickr-current-month {

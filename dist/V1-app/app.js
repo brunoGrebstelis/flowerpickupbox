@@ -206,6 +206,8 @@ const el = {
   statsPeriodToggleBtn: document.getElementById("statsPeriodToggleBtn"),
   statsPeriodPanel: document.getElementById("statsPeriodPanel"),
   statsCustomRange: document.getElementById("statsCustomRange"),
+  statsCustomRangePicker: document.getElementById("statsCustomRangePicker"),
+  statsCustomRangeLegacy: document.getElementById("statsCustomRangeLegacy"),
   statsCustomFrom: document.getElementById("statsCustomFrom"),
   statsCustomTo: document.getElementById("statsCustomTo"),
   downloadPurchasesCsvBtn: document.getElementById("downloadPurchasesCsvBtn"),
@@ -281,6 +283,91 @@ function closeStatsPeriodPanel() {
   if (el.statsPeriodPanel) {
     el.statsPeriodPanel.hidden = true;
   }
+}
+
+function formatDateForInput(dateObj) {
+  if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+}
+
+function getStatsRangePickerInstance() {
+  const picker = el.statsCustomRangePicker && el.statsCustomRangePicker._flatpickr;
+  return picker || null;
+}
+
+function syncStatsRangePickerFromInputs() {
+  const picker = getStatsRangePickerInstance();
+  if (!picker) return;
+  const fromRaw = String(el.statsCustomFrom?.value || "").trim();
+  const toRaw = String(el.statsCustomTo?.value || "").trim();
+  if (!fromRaw && !toRaw) {
+    picker.clear(false);
+    return;
+  }
+  const selected = [];
+  if (fromRaw) selected.push(fromRaw);
+  if (toRaw) selected.push(toRaw);
+  picker.setDate(selected, false, "Y-m-d");
+}
+
+function updateStatsRangeInputsFromDates(selectedDates) {
+  const from = selectedDates[0] || null;
+  const to = selectedDates[1] || null;
+  if (el.statsCustomFrom) {
+    el.statsCustomFrom.value = formatDateForInput(from);
+  }
+  if (el.statsCustomTo) {
+    el.statsCustomTo.value = formatDateForInput(to);
+  }
+}
+
+function initStatsRangePicker() {
+  if (!el.statsCustomRangePicker) return;
+
+  if (typeof window.flatpickr !== "function") {
+    if (el.statsCustomRangeLegacy) {
+      el.statsCustomRangeLegacy.hidden = false;
+    }
+    return;
+  }
+
+  if (el.statsCustomRangeLegacy) {
+    el.statsCustomRangeLegacy.hidden = true;
+  }
+
+  const defaultDates = [];
+  const fromRaw = String(el.statsCustomFrom?.value || "").trim();
+  const toRaw = String(el.statsCustomTo?.value || "").trim();
+  if (fromRaw) defaultDates.push(fromRaw);
+  if (toRaw) defaultDates.push(toRaw);
+
+  window.flatpickr(el.statsCustomRangePicker, {
+    mode: "range",
+    dateFormat: "Y-m-d",
+    disableMobile: true,
+    allowInput: false,
+    defaultDate: defaultDates.length ? defaultDates : undefined,
+    locale: {
+      rangeSeparator: " → ",
+    },
+    onChange(selectedDates) {
+      updateStatsRangeInputsFromDates(selectedDates);
+      updateStatsPeriodButtonLabel();
+      if (selectedDates.length === 2) {
+        applyAdminStatsView();
+      }
+    },
+    onClose(selectedDates) {
+      if (selectedDates.length === 0) {
+        updateStatsRangeInputsFromDates([]);
+        updateStatsPeriodButtonLabel();
+        applyAdminStatsView();
+      }
+    },
+  });
+
+  syncStatsRangePickerFromInputs();
 }
 
 function setChartVisibility(mode = "", options = {}) {
@@ -1389,6 +1476,16 @@ function syncBusyUi() {
   if (el.statsPeriodSelect) {
     el.statsPeriodSelect.disabled = busy || !canUseApp || state.selectedRole !== "admin";
   }
+
+  const customRangeEnabled = !busy
+    && canUseApp
+    && state.selectedRole === "admin"
+    && String(el.statsPeriodSelect?.value || "") === "custom";
+  [el.statsCustomRangePicker, el.statsCustomFrom, el.statsCustomTo]
+    .filter(Boolean)
+    .forEach((input) => {
+      input.disabled = !customRangeEnabled;
+    });
 
   if (el.statsPeriodToggleBtn) {
     el.statsPeriodToggleBtn.disabled = busy || !canUseApp || state.selectedRole !== "admin";
@@ -3490,6 +3587,15 @@ function wireEvents() {
       if (el.statsCustomRange) {
         el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
       }
+      if (el.statsPeriodSelect.value === "custom") {
+        syncStatsRangePickerFromInputs();
+        const picker = getStatsRangePickerInstance();
+        if (picker) {
+          window.setTimeout(() => {
+            picker.open();
+          }, 0);
+        }
+      }
       applyAdminStatsView();
       if (el.statsPeriodSelect.value !== "custom") {
         closeStatsPeriodPanel();
@@ -3499,12 +3605,14 @@ function wireEvents() {
 
   if (el.statsCustomFrom) {
     el.statsCustomFrom.addEventListener("change", () => {
+      syncStatsRangePickerFromInputs();
       applyAdminStatsView();
     });
   }
 
   if (el.statsCustomTo) {
     el.statsCustomTo.addEventListener("change", () => {
+      syncStatsRangePickerFromInputs();
       applyAdminStatsView();
     });
   }
@@ -3611,6 +3719,7 @@ async function init() {
   if (el.statsCustomRange && el.statsPeriodSelect) {
     el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
   }
+  initStatsRangePicker();
   setChartVisibility("");
   updateTopMachineStrip();
   syncBusyUi();

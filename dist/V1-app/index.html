@@ -6,7 +6,8 @@
   <title>Flower Pickup Box Control</title>
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
-  <link rel="stylesheet" href="./styles.css?v=20260521-16" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+  <link rel="stylesheet" href="./styles.css?v=20260521-17" />
 </head>
 <body>
   <main class="app-shell">
@@ -156,10 +157,14 @@
               <option value="custom">Custom</option>
             </select>
             <div id="statsCustomRange" class="stats-custom-range" hidden>
-              <label for="statsCustomFrom">From</label>
-              <input id="statsCustomFrom" type="date" />
-              <label for="statsCustomTo">To</label>
-              <input id="statsCustomTo" type="date" />
+              <label for="statsCustomRangePicker">Date range</label>
+              <input id="statsCustomRangePicker" type="text" placeholder="Select start and end date" readonly />
+              <div id="statsCustomRangeLegacy" class="stats-custom-range-legacy" hidden>
+                <label for="statsCustomFrom">From</label>
+                <input id="statsCustomFrom" type="date" />
+                <label for="statsCustomTo">To</label>
+                <input id="statsCustomTo" type="date" />
+              </div>
             </div>
           </div>
         </div>
@@ -249,6 +254,7 @@
     </section>
   </main>
 
-  <script src="./app.js?v=20260521-16"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="./app.js?v=20260521-17"></script>
 </body>
 </html>

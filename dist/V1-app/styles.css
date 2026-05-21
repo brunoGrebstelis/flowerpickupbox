@@ -257,6 +257,12 @@ body {
   padding-right: 0;
 }
 
+.stats-custom-range-legacy {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
 .stats-custom-range input,
 .stats-period-panel select {
   width: 100%;

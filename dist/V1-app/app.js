@@ -330,18 +330,23 @@ function openColorPickerModal() {
   }
 }
 
-function blurActiveAuthFieldOnInit() {
-  const blurIfNeeded = () => {
-    const active = document.activeElement;
-    if ((active === el.authEmail || active === el.authPassword) && typeof active?.blur === "function") {
-      active.blur();
-    }
-  };
+function blurAuthFieldsIfFocused() {
+  const active = document.activeElement;
+  if ((active === el.authEmail || active === el.authPassword) && typeof active?.blur === "function") {
+    active.blur();
+  }
+}
 
-  window.requestAnimationFrame(() => {
-    blurIfNeeded();
-    window.setTimeout(blurIfNeeded, 120);
+function scheduleAuthFieldBlur() {
+  const delays = [0, 120, 320, 800];
+  window.requestAnimationFrame(blurAuthFieldsIfFocused);
+  delays.forEach((delay) => {
+    window.setTimeout(blurAuthFieldsIfFocused, delay);
   });
+}
+
+function blurActiveAuthFieldOnInit() {
+  scheduleAuthFieldBlur();
 }
 
 function getSignedInUserLabel() {
@@ -372,6 +377,10 @@ function setAuthLayoutVisible(isAuthenticated) {
 
   if (el.signedInUser) {
     el.signedInUser.value = isAuthenticated ? getSignedInUserLabel() : "-";
+  }
+
+  if (!isAuthenticated) {
+    scheduleAuthFieldBlur();
   }
 }
 

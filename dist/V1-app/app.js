@@ -280,9 +280,7 @@ function openNativeColorPicker(inputEl) {
 }
 
 function closeStatsPeriodPanel() {
-  if (el.statsPeriodPanel) {
-    el.statsPeriodPanel.hidden = true;
-  }
+  // Period picker opens directly from the title button (no extra visible panel).
 }
 
 function formatDateForInput(dateObj) {
@@ -3619,20 +3617,20 @@ function wireEvents() {
 
   if (el.statsPeriodToggleBtn && el.statsPeriodSelect) {
     el.statsPeriodToggleBtn.addEventListener("click", () => {
-      const nextHidden = !Boolean(el.statsPeriodPanel?.hidden);
-      if (el.statsPeriodPanel) {
-        el.statsPeriodPanel.hidden = nextHidden;
-      }
-      if (!nextHidden) {
-        try {
-          if (typeof el.statsPeriodSelect.showPicker === "function") {
-            el.statsPeriodSelect.showPicker();
-          } else {
-            el.statsPeriodSelect.focus();
-          }
-        } catch {
-          el.statsPeriodSelect.focus();
+      try {
+        if (typeof el.statsPeriodSelect.showPicker === "function") {
+          el.statsPeriodSelect.showPicker();
+          return;
         }
+      } catch {
+        // Fallback below.
+      }
+
+      try {
+        el.statsPeriodSelect.focus();
+        el.statsPeriodSelect.click();
+      } catch {
+        el.statsPeriodSelect.focus();
       }
     });
   }
@@ -3643,21 +3641,6 @@ function wireEvents() {
   if (el.downloadClimateCsvBtn) {
     el.downloadClimateCsvBtn.addEventListener("click", downloadClimateCsv);
   }
-
-  document.addEventListener("click", (event) => {
-    if (!el.statsPeriodPanel || !el.statsPeriodToggleBtn) return;
-    if (el.statsPeriodPanel.hidden) return;
-    const target = event.target;
-    if (!(target instanceof Node)) return;
-    const inPanel = el.statsPeriodPanel.contains(target);
-    const inButton = el.statsPeriodToggleBtn.contains(target);
-    const inFlatpickrCalendar = target instanceof Element
-      ? Boolean(target.closest(".flatpickr-calendar"))
-      : false;
-    if (!inPanel && !inButton && !inFlatpickrCalendar) {
-      closeStatsPeriodPanel();
-    }
-  });
 
   if (el.signInBtn) {
     el.signInBtn.addEventListener("click", () => {

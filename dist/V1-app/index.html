@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260521-18" />
+  <link rel="stylesheet" href="./styles.css?v=20260521-19" />
 </head>
 <body>
   <main class="app-shell">
@@ -147,8 +147,8 @@
         <h2>Admin Statistics</h2>
         <div class="admin-stats-controls">
           <button id="statsPeriodToggleBtn" class="btn stats-period-title-btn" type="button">May 2026</button>
-          <div id="statsPeriodPanel" class="stats-period-panel" hidden>
-            <label for="statsPeriodSelect">Period</label>
+          <div id="statsPeriodPanel" class="stats-period-panel period-native-select-host">
+            <label class="sr-only" for="statsPeriodSelect">Period</label>
             <select id="statsPeriodSelect">
               <option value="this_month" selected>This month</option>
               <option value="last_month">Last month</option>
@@ -156,15 +156,15 @@
               <option value="all_time">Total</option>
               <option value="custom">Custom</option>
             </select>
-            <div id="statsCustomRange" class="stats-custom-range" hidden>
-              <label for="statsCustomRangePicker">Date range</label>
-              <input id="statsCustomRangePicker" type="text" placeholder="Select start and end date" readonly />
-              <div id="statsCustomRangeLegacy" class="stats-custom-range-legacy" hidden>
-                <label for="statsCustomFrom">From</label>
-                <input id="statsCustomFrom" type="date" />
-                <label for="statsCustomTo">To</label>
-                <input id="statsCustomTo" type="date" />
-              </div>
+          </div>
+          <div id="statsCustomRange" class="stats-custom-range" hidden>
+            <label for="statsCustomRangePicker">Date range</label>
+            <input id="statsCustomRangePicker" type="text" placeholder="Select start and end date" readonly />
+            <div id="statsCustomRangeLegacy" class="stats-custom-range-legacy" hidden>
+              <label for="statsCustomFrom">From</label>
+              <input id="statsCustomFrom" type="date" />
+              <label for="statsCustomTo">To</label>
+              <input id="statsCustomTo" type="date" />
             </div>
           </div>
         </div>
@@ -255,6 +255,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260521-18"></script>
+  <script src="./app.js?v=20260521-19"></script>
 </body>
 </html>

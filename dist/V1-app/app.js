@@ -352,11 +352,17 @@ function initStatsRangePicker() {
     if (el.statsCustomRangeLegacy) {
       el.statsCustomRangeLegacy.hidden = false;
     }
+    if (el.statsCustomRange && el.statsPeriodSelect) {
+      el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
+    }
     return;
   }
 
   if (el.statsCustomRangeLegacy) {
     el.statsCustomRangeLegacy.hidden = true;
+  }
+  if (el.statsCustomRange) {
+    el.statsCustomRange.hidden = true;
   }
 
   const defaultDates = [];
@@ -370,6 +376,9 @@ function initStatsRangePicker() {
     dateFormat: "Y-m-d",
     disableMobile: true,
     allowInput: false,
+    position: "auto center",
+    appendTo: document.body,
+    positionElement: el.statsPeriodToggleBtn || undefined,
     defaultDate: defaultDates.length ? defaultDates : undefined,
     locale: {
       rangeSeparator: " → ",
@@ -3613,8 +3622,9 @@ function wireEvents() {
 
   if (el.statsPeriodSelect) {
     el.statsPeriodSelect.addEventListener("change", () => {
+      const usingFlatpickr = Boolean(getStatsRangePickerInstance());
       if (el.statsCustomRange) {
-        el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
+        el.statsCustomRange.hidden = usingFlatpickr || el.statsPeriodSelect.value !== "custom";
       }
       syncStatsPeriodMenuActiveState();
       syncBusyUi();
@@ -3671,6 +3681,19 @@ function wireEvents() {
 
   if (el.statsPeriodToggleBtn && el.statsPeriodSelect) {
     el.statsPeriodToggleBtn.addEventListener("click", () => {
+      if (el.statsPeriodSelect.value === "custom") {
+        const picker = getStatsRangePickerInstance();
+        if (picker) {
+          if (picker.isOpen) {
+            picker.close();
+            setStatsPeriodMenuVisible(true);
+          } else {
+            closeStatsPeriodPanel();
+            picker.open();
+          }
+          return;
+        }
+      }
       const nextVisible = Boolean(el.statsPeriodMenu?.hidden);
       setStatsPeriodMenuVisible(nextVisible);
     });
@@ -3756,7 +3779,8 @@ async function init() {
   updateStatsPeriodButtonLabel();
   closeStatsPeriodPanel();
   if (el.statsCustomRange && el.statsPeriodSelect) {
-    el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
+    const usingFlatpickr = typeof window.flatpickr === "function";
+    el.statsCustomRange.hidden = usingFlatpickr || el.statsPeriodSelect.value !== "custom";
   }
   initStatsRangePicker();
   setChartVisibility("");

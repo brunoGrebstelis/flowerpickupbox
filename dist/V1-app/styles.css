@@ -918,6 +918,16 @@ input.failed {
   font-weight: 700;
 }
 
+.flatpickr-calendar {
+  z-index: 3000;
+}
+
+@media (max-width: 768px) {
+  .flatpickr-calendar {
+    max-width: min(96vw, 360px);
+  }
+}
+
 .admin-stats-summary {
   min-height: 0;
 }

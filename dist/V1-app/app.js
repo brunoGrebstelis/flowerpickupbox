@@ -329,6 +329,20 @@ function openColorPickerModal() {
   }
 }
 
+function blurActiveAuthFieldOnInit() {
+  const blurIfNeeded = () => {
+    const active = document.activeElement;
+    if ((active === el.authEmail || active === el.authPassword) && typeof active?.blur === "function") {
+      active.blur();
+    }
+  };
+
+  window.requestAnimationFrame(() => {
+    blurIfNeeded();
+    window.setTimeout(blurIfNeeded, 120);
+  });
+}
+
 function getSignedInUserLabel() {
   const selected = state.users.find((u) => Number(u.user_id) === Number(state.selectedUserId));
   if (!selected) return state.auth.email || "-";
@@ -3512,6 +3526,7 @@ async function init() {
     el.authPassword.value = String(localStorage.getItem(STORAGE_KEYS.authPassword) || "");
   }
   setNewPasswordChallengeVisible(false);
+  blurActiveAuthFieldOnInit();
 
   if (location.protocol === "file:") {
     setStatus("You opened frontend as file://. Browser will often block API calls (CORS). Open it with an http server.");

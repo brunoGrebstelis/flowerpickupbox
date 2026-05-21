@@ -1479,8 +1479,7 @@ function syncBusyUi() {
 
   const customRangeEnabled = !busy
     && canUseApp
-    && state.selectedRole === "admin"
-    && String(el.statsPeriodSelect?.value || "") === "custom";
+    && state.selectedRole === "admin";
   [el.statsCustomRangePicker, el.statsCustomFrom, el.statsCustomTo]
     .filter(Boolean)
     .forEach((input) => {
@@ -3587,6 +3586,7 @@ function wireEvents() {
       if (el.statsCustomRange) {
         el.statsCustomRange.hidden = el.statsPeriodSelect.value !== "custom";
       }
+      syncBusyUi();
       if (el.statsPeriodSelect.value === "custom") {
         syncStatsRangePickerFromInputs();
         const picker = getStatsRangePickerInstance();
@@ -3651,7 +3651,10 @@ function wireEvents() {
     if (!(target instanceof Node)) return;
     const inPanel = el.statsPeriodPanel.contains(target);
     const inButton = el.statsPeriodToggleBtn.contains(target);
-    if (!inPanel && !inButton) {
+    const inFlatpickrCalendar = target instanceof Element
+      ? Boolean(target.closest(".flatpickr-calendar"))
+      : false;
+    if (!inPanel && !inButton && !inFlatpickrCalendar) {
       closeStatsPeriodPanel();
     }
   });

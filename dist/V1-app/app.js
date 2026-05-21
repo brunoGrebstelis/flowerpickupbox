@@ -209,6 +209,7 @@ const el = {
   statsCustomFrom: document.getElementById("statsCustomFrom"),
   statsCustomTo: document.getElementById("statsCustomTo"),
   downloadPurchasesCsvBtn: document.getElementById("downloadPurchasesCsvBtn"),
+  downloadClimateCsvBtn: document.getElementById("downloadClimateCsvBtn"),
   activityLogs: document.getElementById("activityLogs"),
   purchaseLogs: document.getElementById("purchaseLogs"),
 };
@@ -806,6 +807,10 @@ function formatCsvDateAndTime(value) {
   };
 }
 
+function getClimateLogTime(entry) {
+  return entry?.logged_at || entry?.recorded_at || entry?.created_at;
+}
+
 function downloadPurchasesCsv() {
   if (!state.auth.isAuthenticated || state.selectedRole !== "admin") {
     setStatus("CSV download is available only for admin users.");
@@ -863,24 +868,88 @@ function downloadPurchasesCsv() {
   setStatus(`Downloaded CSV with ${purchases.length} purchases.`, true);
 }
 
+function downloadClimateCsv() {
+  if (!state.auth.isAuthenticated || state.selectedRole !== "admin") {
+    setStatus("CSV download is available only for admin users.");
+    return;
+  }
+
+  const period = String(el.statsPeriodSelect?.value || "this_month");
+  const inPeriod = dateFilterForPeriod(period);
+  const climate = (state.latestStatsRaw.climate || [])
+    .filter((x) => Number(x.sensor_id) === 1)
+    .filter((x) => inPeriod(getClimateLogTime(x)))
+    .slice()
+    .sort((a, b) => {
+      const ta = parseDateMaybe(getClimateLogTime(a))?.getTime() || 0;
+      const tb = parseDateMaybe(getClimateLogTime(b))?.getTime() || 0;
+      return ta - tb;
+    });
+
+  if (!climate.length) {
+    setStatus("No climate logs found for selected period (sensor 1).");
+    return;
+  }
+
+  const rows = climate.map((entry) => {
+    const { date, time } = formatCsvDateAndTime(getClimateLogTime(entry));
+    const temperature = Number(entry.temperature);
+    const humidity = Number(entry.humidity);
+    const fanMode = Number(entry.fan_mode);
+    const setTemp = Number(entry.set_temp);
+
+    return [
+      csvEscape(entry.climate_log_id ?? ""),
+      csvEscape(entry.machine_id ?? ""),
+      csvEscape(entry.sensor_id ?? ""),
+      csvEscape(date),
+      csvEscape(time),
+      csvEscape(Number.isFinite(temperature) ? temperature.toFixed(2) : ""),
+      csvEscape(Number.isFinite(humidity) ? humidity.toFixed(2) : ""),
+      csvEscape(Number.isFinite(fanMode) ? String(fanMode) : ""),
+      csvEscape(Number.isFinite(setTemp) ? setTemp.toFixed(2) : ""),
+    ].join(",");
+  });
+
+  const csv = ["Climate log id,Machine id,Sensor id,Date,Time,Temperature,Humidity,Fan mode,Set temp", ...rows].join("\r\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const periodSafe = period.replace(/[^a-z0-9_-]/gi, "_");
+  const machineSafe = state.selectedMachineId ? `machine_${state.selectedMachineId}` : "machine";
+  const filename = `climate_sensor1_${machineSafe}_${periodSafe}_${stamp}.csv`;
+
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+
+  setStatus(`Downloaded CSV with ${climate.length} climate logs (sensor 1).`, true);
+}
+
 function applyAdminStatsView() {
   updateStatsPeriodButtonLabel();
 
   const period = (el.statsPeriodSelect?.value || "this_month");
   const inPeriod = dateFilterForPeriod(period);
-  const climateTime = (x) => x?.logged_at || x?.recorded_at || x?.created_at;
 
   const purchases = (state.latestStatsRaw.purchases || []).filter((x) => inPeriod(x.purchased_at || x.created_at));
   const climate = (state.latestStatsRaw.climate || [])
     .filter((x) => Number(x.sensor_id) === 1)
-    .filter((x) => inPeriod(climateTime(x)));
+    .filter((x) => inPeriod(getClimateLogTime(x)));
 
   const signature = JSON.stringify({
     period,
     purchasesLen: purchases.length,
     climateLen: climate.length,
     purchasesTail: purchases.slice(-30).map((x) => [x.purchase_log_id || x.id || null, x.purchased_at || x.created_at || null, Number(x.amount || 0)]),
-    climateTail: climate.slice(-30).map((x) => [x.climate_log_id || x.id || null, climateTime(x) || null, Number(x.temperature || 0), Number(x.humidity || 0)]),
+    climateTail: climate.slice(-30).map((x) => [x.climate_log_id || x.id || null, getClimateLogTime(x) || null, Number(x.temperature || 0), Number(x.humidity || 0)]),
   });
   if (state.chartRenderSignature === signature) {
     return;
@@ -892,7 +961,7 @@ function applyAdminStatsView() {
     purchasesCount: purchases.length,
     climateCount: climate.length,
     purchaseTail: purchases.slice(-20).map((p) => [p.purchase_log_id || p.id || null, p.purchased_at || p.created_at || null, Number(p.amount || 0)]),
-    climateTail: climate.slice(-20).map((c) => [c.climate_log_id || c.id || null, climateTime(c) || null, Number(c.temperature || 0), Number(c.humidity || 0)]),
+    climateTail: climate.slice(-20).map((c) => [c.climate_log_id || c.id || null, getClimateLogTime(c) || null, Number(c.temperature || 0), Number(c.humidity || 0)]),
   });
 
   if (state.latestRenderedStatsSignature && state.latestRenderedStatsSignature === nextSignature) {
@@ -1259,6 +1328,7 @@ function syncBusyUi() {
     el.machineCommandsToggleBtn,
     el.toggleClimateDetailsBtn,
     el.downloadPurchasesCsvBtn,
+    el.downloadClimateCsvBtn,
   ];
 
   staticButtons
@@ -1305,6 +1375,9 @@ function syncBusyUi() {
   }
   if (el.downloadPurchasesCsvBtn) {
     el.downloadPurchasesCsvBtn.disabled = busy || !canUseApp || state.selectedRole !== "admin";
+  }
+  if (el.downloadClimateCsvBtn) {
+    el.downloadClimateCsvBtn.disabled = busy || !canUseApp || state.selectedRole !== "admin";
   }
 }
 
@@ -3438,6 +3511,9 @@ function wireEvents() {
 
   if (el.downloadPurchasesCsvBtn) {
     el.downloadPurchasesCsvBtn.addEventListener("click", downloadPurchasesCsv);
+  }
+  if (el.downloadClimateCsvBtn) {
+    el.downloadClimateCsvBtn.addEventListener("click", downloadClimateCsv);
   }
 
   document.addEventListener("click", (event) => {

@@ -9,7 +9,6 @@ const STORAGE_KEYS = {
   authRefreshToken: "authRefreshToken",
   authExpiresAt: "authExpiresAt",
   authEmail: "authEmail",
-  authPassword: "authPassword",
 };
 
 const COMMAND_IDS = {
@@ -1485,6 +1484,7 @@ function clearAuthStorage() {
   localStorage.removeItem(STORAGE_KEYS.authAccessToken);
   localStorage.removeItem(STORAGE_KEYS.authRefreshToken);
   localStorage.removeItem(STORAGE_KEYS.authExpiresAt);
+  localStorage.removeItem("authPassword");
 }
 
 function rememberAuth(authResult, fallbackEmail = "") {
@@ -3040,48 +3040,6 @@ async function restoreAuthFromStorageAndRefreshIfNeeded() {
   return true;
 }
 
-async function tryAutoSignInWithSavedCredentials() {
-  if (!state.authConfig.enabled) return false;
-
-  const email = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim().toLowerCase();
-  const password = String(localStorage.getItem(STORAGE_KEYS.authPassword) || "");
-  if (!email || !password) return false;
-
-  setAuthStatus("Signing in automatically...", true);
-  const signInResult = await signInWithCognito(email, password);
-  if (signInResult?.challengeName === "NEW_PASSWORD_REQUIRED") {
-    state.auth.pendingChallenge = {
-      challengeName: "NEW_PASSWORD_REQUIRED",
-      session: signInResult.session || "",
-      username: signInResult.username || email,
-      email,
-    };
-    setNewPasswordChallengeVisible(true);
-    setAuthStatus("First sign-in requires password change. Enter a new password below.", false);
-    setStatus("First sign-in requires password change. Enter and confirm new password.", false);
-    syncBusyUi();
-    return false;
-  }
-
-  await bootstrapAuthenticatedApp();
-  if (el.authPassword) {
-    el.authPassword.value = "";
-  }
-  return true;
-}
-
-function shouldForgetStoredPassword(error) {
-  const msg = String(error?.message || "").toLowerCase();
-  if (!msg) return false;
-  return [
-    "not authorized",
-    "incorrect username or password",
-    "user not found",
-    "password reset required",
-    "user does not exist",
-  ].some((token) => msg.includes(token));
-}
-
 async function restoreMachineSelectionAndAutoloadDashboard(preferredMachineIdRaw = null) {
   const storedMachineIdRaw = preferredMachineIdRaw ?? localStorage.getItem(STORAGE_KEYS.selectedMachineId);
   if (!storedMachineIdRaw) return;
@@ -3169,7 +3127,6 @@ async function handleSignIn() {
 
   setNewPasswordChallengeVisible(false);
   await bootstrapAuthenticatedApp();
-  localStorage.setItem(STORAGE_KEYS.authPassword, password);
   if (el.authPassword) {
     el.authPassword.value = "";
   }
@@ -3208,7 +3165,6 @@ async function handleSetNewPassword() {
   }
 
   await bootstrapAuthenticatedApp();
-  localStorage.setItem(STORAGE_KEYS.authPassword, newPassword);
 }
 
 function handleSignOut() {
@@ -4032,7 +3988,7 @@ async function init() {
     el.authEmail.value = (localStorage.getItem(STORAGE_KEYS.authEmail) || "").trim();
   }
   if (el.authPassword) {
-    el.authPassword.value = String(localStorage.getItem(STORAGE_KEYS.authPassword) || "");
+    el.authPassword.value = "";
   }
   setNewPasswordChallengeVisible(false);
   blurActiveAuthFieldOnInit();
@@ -4045,46 +4001,23 @@ async function init() {
     await loadAuthConfig();
     const restored = await restoreAuthFromStorageAndRefreshIfNeeded();
     if (restored) {
+      setAuthLayoutVisible(true);
+      setAuthStatus("Restoring saved session...", true);
+      setStatus("Restoring saved session...", true);
       try {
         await bootstrapAuthenticatedApp();
       } catch (e) {
-        // Stored token can be invalid/expired or rejected by authorizer.
-        // Fall back to clean signed-out state instead of hard init failure.
         clearAuthStorage();
         resetAuthState();
         setNewPasswordChallengeVisible(false);
-        try {
-          const autoSigned = await tryAutoSignInWithSavedCredentials();
-          if (!autoSigned) {
-            setStatus("Stored session is invalid. Please sign in again.");
-            setAuthStatus(`Session reset: ${e.message}`);
-            setAuthLayoutVisible(false);
-          }
-        } catch (autoError) {
-          if (shouldForgetStoredPassword(autoError)) {
-            localStorage.removeItem(STORAGE_KEYS.authPassword);
-          }
-          setStatus(`Stored session reset and auto sign-in failed: ${autoError.message}`);
-          setAuthStatus(`Session reset: ${e.message}`);
-          setAuthLayoutVisible(false);
-        }
-      }
-    } else {
-      try {
-        const autoSigned = await tryAutoSignInWithSavedCredentials();
-        if (!autoSigned) {
-          setStatus("Sign in to continue.", true);
-          setAuthStatus("Not signed in");
-          setAuthLayoutVisible(false);
-        }
-      } catch (autoError) {
-        if (shouldForgetStoredPassword(autoError)) {
-          localStorage.removeItem(STORAGE_KEYS.authPassword);
-        }
-        setStatus(`Auto sign-in failed: ${autoError.message}`);
-        setAuthStatus("Not signed in");
+        setStatus("Stored session is invalid. Please sign in again.");
+        setAuthStatus(`Session reset: ${e.message}`);
         setAuthLayoutVisible(false);
       }
+    } else {
+      setStatus("Sign in to continue.", true);
+      setAuthStatus("Not signed in");
+      setAuthLayoutVisible(false);
     }
   } catch (e) {
     setStatus(`Failed to initialize frontend: ${e.message}`);

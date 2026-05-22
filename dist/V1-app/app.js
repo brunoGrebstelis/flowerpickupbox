@@ -711,10 +711,11 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
+  const isNarrowChart = width <= 480;
   const padLeft = 48;
   const padRight = 16;
   const padTop = 24;
-  const padBottom = 42;
+  const padBottom = isNarrowChart ? 62 : 42;
   const chartW = Math.max(10, width - padLeft - padRight);
   const chartH = Math.max(10, height - padTop - padBottom);
 
@@ -748,10 +749,68 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
 
   const truncatedLabels = labels.map((x) => String(x || "").slice(0, 10));
   ctx.font = "11px Segoe UI";
-  const maxLabelWidth = Math.max(0, ...truncatedLabels.map((txt) => ctx.measureText(txt).width));
-  const minTickSpacing = Math.max(44, Math.ceil(maxLabelWidth + 12));
+  const labelWidths = truncatedLabels.map((txt) => ctx.measureText(txt).width);
+  const maxLabelWidth = Math.max(0, ...labelWidths);
+  const minTickSpacing = isNarrowChart
+    ? Math.max(70, Math.ceil(maxLabelWidth + 24))
+    : Math.max(48, Math.ceil(maxLabelWidth + 14));
   const maxTickCount = Math.max(2, Math.floor(chartW / minTickSpacing));
   const labelStep = Math.max(1, Math.ceil(points.length / maxTickCount));
+
+  const labelBoundsForIndex = (idx) => {
+    const textW = labelWidths[idx] || 0;
+    let left = points[idx].x - textW / 2;
+    let right = points[idx].x + textW / 2;
+    const hardLeft = padLeft + 2;
+    const hardRight = padLeft + chartW - 2;
+    if (left < hardLeft) {
+      right += hardLeft - left;
+      left = hardLeft;
+    }
+    if (right > hardRight) {
+      left -= right - hardRight;
+      right = hardRight;
+    }
+    return { left, right };
+  };
+
+  const candidateLabelIndexes = [];
+  for (let idx = 0; idx < points.length; idx += 1) {
+    if (idx === 0 || idx === points.length - 1 || idx % labelStep === 0) {
+      candidateLabelIndexes.push(idx);
+    }
+  }
+
+  const visibleLabelIndexes = [];
+  const minLabelGap = isNarrowChart ? 10 : 6;
+  candidateLabelIndexes.forEach((idx) => {
+    if (!visibleLabelIndexes.length) {
+      visibleLabelIndexes.push(idx);
+      return;
+    }
+
+    const prevIdx = visibleLabelIndexes[visibleLabelIndexes.length - 1];
+    const prevBounds = labelBoundsForIndex(prevIdx);
+    const currBounds = labelBoundsForIndex(idx);
+    const overlapsPrev = currBounds.left < (prevBounds.right + minLabelGap);
+
+    if (!overlapsPrev) {
+      visibleLabelIndexes.push(idx);
+      return;
+    }
+
+    const isLast = idx === points.length - 1;
+    if (!isLast || visibleLabelIndexes.length < 2) {
+      return;
+    }
+
+    const prevPrevIdx = visibleLabelIndexes[visibleLabelIndexes.length - 2];
+    const prevPrevBounds = labelBoundsForIndex(prevPrevIdx);
+    if (currBounds.left >= (prevPrevBounds.right + minLabelGap)) {
+      visibleLabelIndexes.pop();
+      visibleLabelIndexes.push(idx);
+    }
+  });
 
   if (points.length > 1) {
     ctx.beginPath();
@@ -770,13 +829,101 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
     ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    if (idx % labelStep === 0 || idx === points.length - 1) {
-      const label = truncatedLabels[idx] || "";
-      ctx.fillStyle = "#60708d";
-      ctx.font = "11px Segoe UI";
-      ctx.textAlign = "center";
-      ctx.fillText(label, p.x, padTop + chartH + 16);
+    if (idx === 0) return;
+    if (idx === points.length - 1) return;
+  });
+
+  let globalMaxIdx = 0;
+  for (let i = 1; i < nums.length; i += 1) {
+    if (nums[i] > nums[globalMaxIdx]) {
+      globalMaxIdx = i;
     }
+  }
+
+  const peakCandidates = [];
+  if (nums.length === 1) {
+    peakCandidates.push(0);
+  } else {
+    for (let i = 0; i < nums.length; i += 1) {
+      const value = nums[i];
+      const prev = i > 0 ? nums[i - 1] : Number.NEGATIVE_INFINITY;
+      const next = i < nums.length - 1 ? nums[i + 1] : Number.NEGATIVE_INFINITY;
+      const isBoundaryPeak = (i === 0 && value > next) || (i === nums.length - 1 && value > prev);
+      const isLocalPeak = i > 0 && i < nums.length - 1
+        && (value >= prev && value >= next)
+        && (value > prev || value > next);
+      if (isBoundaryPeak || isLocalPeak) {
+        peakCandidates.push(i);
+      }
+    }
+  }
+
+  if (!peakCandidates.includes(globalMaxIdx)) {
+    peakCandidates.push(globalMaxIdx);
+  }
+
+  const maxPeakLabels = isNarrowChart ? 4 : 6;
+  const minPeakDx = isNarrowChart ? 46 : 36;
+  const chosenPeakIndexes = [];
+  peakCandidates
+    .slice()
+    .sort((a, b) => {
+      const delta = nums[b] - nums[a];
+      if (delta !== 0) return delta;
+      return a - b;
+    })
+    .forEach((idx) => {
+      if (chosenPeakIndexes.length >= maxPeakLabels) return;
+      const tooClose = chosenPeakIndexes.some((otherIdx) => {
+        const dx = Math.abs(points[otherIdx].x - points[idx].x);
+        const dy = Math.abs(points[otherIdx].y - points[idx].y);
+        return dx < minPeakDx && dy < 18;
+      });
+      if (!tooClose) {
+        chosenPeakIndexes.push(idx);
+      }
+    });
+
+  if (!chosenPeakIndexes.includes(globalMaxIdx)) {
+    if (chosenPeakIndexes.length >= maxPeakLabels) {
+      chosenPeakIndexes.pop();
+    }
+    chosenPeakIndexes.push(globalMaxIdx);
+  }
+
+  const formatMoneyLabel = (value) => `${Number(value || 0).toFixed(2)}€`;
+  ctx.font = isNarrowChart ? "10px Segoe UI" : "11px Segoe UI";
+  ctx.textAlign = "center";
+  chosenPeakIndexes
+    .slice()
+    .sort((a, b) => a - b)
+    .forEach((idx) => {
+      const p = points[idx];
+      const label = formatMoneyLabel(p.value);
+      const y = Math.max(padTop + 10, p.y - 10);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255,255,255,0.96)";
+      ctx.strokeText(label, p.x, y);
+      ctx.fillStyle = "#1f2d46";
+      ctx.fillText(label, p.x, y);
+    });
+
+  ctx.fillStyle = "#60708d";
+  ctx.font = "11px Segoe UI";
+  visibleLabelIndexes.forEach((idx) => {
+    const label = truncatedLabels[idx] || "";
+    if (!label) return;
+    if (isNarrowChart) {
+      ctx.save();
+      ctx.translate(points[idx].x, padTop + chartH + 22);
+      ctx.rotate(-Math.PI / 6);
+      ctx.textAlign = "right";
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+      return;
+    }
+    ctx.textAlign = "center";
+    ctx.fillText(label, points[idx].x, padTop + chartH + 16);
   });
 
   ctx.fillStyle = "#60708d";

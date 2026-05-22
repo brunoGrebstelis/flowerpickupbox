@@ -334,6 +334,60 @@ function syncStatsRangePickerFromInputs() {
   picker.setDate(selected, false, "Y-m-d");
 }
 
+function ensureFlatpickrYearDropdown(instance) {
+  if (!instance || !instance.calendarContainer) return;
+
+  const calendar = instance.calendarContainer;
+  const monthRow = calendar.querySelector(".flatpickr-current-month");
+  const yearWrapper = calendar.querySelector(".numInputWrapper");
+  const yearInput = calendar.querySelector("input.cur-year");
+  if (!monthRow || !yearWrapper || !yearInput) return;
+
+  let yearSelect = calendar.querySelector("select.flatpickr-yearDropdown");
+  if (!yearSelect) {
+    yearSelect = document.createElement("select");
+    yearSelect.className = "flatpickr-yearDropdown";
+    monthRow.appendChild(yearSelect);
+  }
+
+  const parsedMin = instance.config?.minDate ? new Date(instance.config.minDate) : null;
+  const parsedMax = instance.config?.maxDate ? new Date(instance.config.maxDate) : null;
+
+  const minYear = parsedMin && !Number.isNaN(parsedMin.getTime())
+    ? parsedMin.getFullYear()
+    : (instance.currentYear - 20);
+  const maxYear = parsedMax && !Number.isNaN(parsedMax.getTime())
+    ? parsedMax.getFullYear()
+    : (instance.currentYear + 20);
+
+  const fromYear = Math.min(minYear, instance.currentYear - 20);
+  const toYear = Math.max(maxYear, instance.currentYear + 20);
+
+  const currentValue = String(instance.currentYear);
+  const existingOptions = Array.from(yearSelect.options).map((opt) => opt.value);
+  const expectedCount = Math.max(0, toYear - fromYear + 1);
+
+  if (existingOptions.length !== expectedCount || !existingOptions.includes(currentValue)) {
+    yearSelect.innerHTML = "";
+    for (let y = fromYear; y <= toYear; y += 1) {
+      const opt = document.createElement("option");
+      opt.value = String(y);
+      opt.textContent = String(y);
+      yearSelect.appendChild(opt);
+    }
+  }
+
+  yearSelect.value = currentValue;
+  yearSelect.onchange = () => {
+    const selectedYear = Number(yearSelect.value);
+    if (!Number.isInteger(selectedYear)) return;
+    instance.changeYear(selectedYear);
+    instance.redraw();
+  };
+
+  calendar.classList.add("year-dropdown-ready");
+}
+
 function updateStatsRangeInputsFromDates(selectedDates) {
   const from = selectedDates[0] || null;
   const to = selectedDates[1] || null;
@@ -382,6 +436,18 @@ function initStatsRangePicker() {
     defaultDate: defaultDates.length ? defaultDates : undefined,
     locale: {
       rangeSeparator: " → ",
+    },
+    onReady(_selectedDates, _dateStr, instance) {
+      ensureFlatpickrYearDropdown(instance);
+    },
+    onOpen(_selectedDates, _dateStr, instance) {
+      ensureFlatpickrYearDropdown(instance);
+    },
+    onYearChange(_selectedDates, _dateStr, instance) {
+      ensureFlatpickrYearDropdown(instance);
+    },
+    onMonthChange(_selectedDates, _dateStr, instance) {
+      ensureFlatpickrYearDropdown(instance);
     },
     onChange(selectedDates) {
       updateStatsRangeInputsFromDates(selectedDates);
@@ -678,6 +744,13 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
     return { x, y, value: v, index: idx };
   });
 
+  const truncatedLabels = labels.map((x) => String(x || "").slice(0, 10));
+  ctx.font = "11px Segoe UI";
+  const maxLabelWidth = Math.max(0, ...truncatedLabels.map((txt) => ctx.measureText(txt).width));
+  const minTickSpacing = Math.max(44, Math.ceil(maxLabelWidth + 12));
+  const maxTickCount = Math.max(2, Math.floor(chartW / minTickSpacing));
+  const labelStep = Math.max(1, Math.ceil(points.length / maxTickCount));
+
   if (points.length > 1) {
     ctx.beginPath();
     ctx.strokeStyle = color;
@@ -695,8 +768,8 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
     ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    if (idx % Math.ceil(points.length / 6) === 0 || idx === points.length - 1) {
-      const label = String(labels[idx] || "").slice(0, 10);
+    if (idx % labelStep === 0 || idx === points.length - 1) {
+      const label = truncatedLabels[idx] || "";
       ctx.fillStyle = "#60708d";
       ctx.font = "11px Segoe UI";
       ctx.textAlign = "center";

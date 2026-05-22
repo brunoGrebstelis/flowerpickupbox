@@ -922,6 +922,39 @@ input.failed {
   z-index: 3000;
 }
 
+.flatpickr-calendar .flatpickr-yearDropdown {
+  display: none;
+}
+
+.flatpickr-calendar.year-dropdown-ready .flatpickr-current-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.flatpickr-calendar.year-dropdown-ready .flatpickr-current-month .numInputWrapper {
+  display: none;
+}
+
+.flatpickr-calendar.year-dropdown-ready .flatpickr-yearDropdown {
+  display: inline-block;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: #22314c;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0 2px;
+  max-width: 108px;
+}
+
+.flatpickr-calendar.year-dropdown-ready .flatpickr-current-month .flatpickr-monthDropdown-months {
+  max-width: 128px;
+}
+
 @media (max-width: 768px) {
   .flatpickr-calendar {
     max-width: min(96vw, 360px);
@@ -949,6 +982,22 @@ input.failed {
   .dayContainer {
     width: 100%;
     min-width: 100%;
+  }
+
+  .flatpickr-months {
+    overflow: visible;
+  }
+
+  .flatpickr-calendar.year-dropdown-ready .flatpickr-current-month {
+    gap: 8px;
+    padding-right: 26px;
+    padding-left: 26px;
+  }
+
+  .flatpickr-calendar.year-dropdown-ready .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-calendar.year-dropdown-ready .flatpickr-yearDropdown {
+    max-width: 46%;
+    font-size: 15px;
   }
 
   .flatpickr-weekdays {

@@ -927,25 +927,47 @@ input.failed {
     max-width: min(96vw, 360px);
     left: 50% !important;
     transform: translateX(-50%);
+    padding-bottom: 6px;
+  }
+
+  .flatpickr-months .flatpickr-month {
+    height: 44px;
   }
 
   .flatpickr-day {
-    height: 42px;
-    line-height: 42px;
+    height: 48px;
+    line-height: 48px;
+    max-height: 48px;
+    font-size: 16px;
   }
 
   .flatpickr-days,
   .dayContainer {
-    min-height: 252px;
+    min-height: 288px;
+  }
+
+  .dayContainer {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .flatpickr-weekdays {
+    height: 36px;
+  }
+
+  .flatpickr-weekday {
+    line-height: 36px;
+    font-size: 13px;
   }
 
   .flatpickr-current-month {
-    padding: 4px 8px 0 8px;
+    padding: 8px 10px 0 10px;
   }
 
   .flatpickr-current-month .flatpickr-monthDropdown-months,
   .flatpickr-current-month input.cur-year {
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 600;
   }
 }
 

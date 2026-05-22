@@ -352,24 +352,25 @@ function ensureFlatpickrYearDropdown(instance) {
 
   const parsedMin = instance.config?.minDate ? new Date(instance.config.minDate) : null;
   const parsedMax = instance.config?.maxDate ? new Date(instance.config.maxDate) : null;
+  const nowYear = new Date().getFullYear();
 
   const minYear = parsedMin && !Number.isNaN(parsedMin.getTime())
     ? parsedMin.getFullYear()
-    : (instance.currentYear - 20);
-  const maxYear = parsedMax && !Number.isNaN(parsedMax.getTime())
+    : (nowYear - 30);
+  const maxAllowedByConfig = parsedMax && !Number.isNaN(parsedMax.getTime())
     ? parsedMax.getFullYear()
-    : (instance.currentYear + 20);
+    : nowYear;
+  const topYear = Math.min(nowYear, maxAllowedByConfig);
+  const bottomYear = Math.min(topYear, minYear);
 
-  const fromYear = Math.min(minYear, instance.currentYear - 20);
-  const toYear = Math.max(maxYear, instance.currentYear + 20);
-
-  const currentValue = String(instance.currentYear);
+  const currentYearClamped = Math.min(instance.currentYear, topYear);
+  const currentValue = String(currentYearClamped);
   const existingOptions = Array.from(yearSelect.options).map((opt) => opt.value);
-  const expectedCount = Math.max(0, toYear - fromYear + 1);
+  const expectedCount = Math.max(0, topYear - bottomYear + 1);
 
   if (existingOptions.length !== expectedCount || !existingOptions.includes(currentValue)) {
     yearSelect.innerHTML = "";
-    for (let y = fromYear; y <= toYear; y += 1) {
+    for (let y = topYear; y >= bottomYear; y -= 1) {
       const opt = document.createElement("option");
       opt.value = String(y);
       opt.textContent = String(y);
@@ -427,6 +428,7 @@ function initStatsRangePicker() {
 
   window.flatpickr(el.statsCustomRangePicker, {
     mode: "range",
+    monthSelectorType: "dropdown",
     dateFormat: "Y-m-d",
     disableMobile: true,
     allowInput: false,
@@ -2567,9 +2569,9 @@ function scrollLockerCommandsIntoViewOnMobile() {
 }
 
 function lockerColorClass(locker) {
-  if (lockerIsOpened(locker) && !coerceBoolean(locker.sold)) return "green";
-  if (lockerIsOpened(locker)) return "orange";
   if (coerceBoolean(locker.sold)) return "red";
+  if (lockerIsOpened(locker) && !coerceBoolean(locker.sold)) return "green";
+  if (lockerIsOpened(locker)) return "green";
   return "green";
 }
 

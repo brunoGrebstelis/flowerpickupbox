@@ -952,7 +952,21 @@ input.failed {
 }
 
 .flatpickr-calendar.year-dropdown-ready .flatpickr-current-month .flatpickr-monthDropdown-months {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: #22314c;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0 2px;
   max-width: 128px;
+}
+
+.flatpickr-calendar.year-dropdown-ready .flatpickr-prev-month,
+.flatpickr-calendar.year-dropdown-ready .flatpickr-next-month {
+  display: none;
 }
 
 @media (max-width: 768px) {

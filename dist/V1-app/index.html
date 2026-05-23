@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260523-01" />
+  <link rel="stylesheet" href="./styles.css?v=20260523-02" />
 </head>
 <body>
   <main class="app-shell">
@@ -263,16 +263,31 @@
 
   <nav id="mobileQuickNav" class="mobile-quick-nav auth-only" hidden aria-label="Quick navigation">
     <button id="quickNavLockerBtn" class="mobile-quick-btn" type="button" title="Locker" aria-label="Locker">
-      <span class="mobile-quick-icon" aria-hidden="true">🔒</span>
-      <span class="mobile-quick-label">Locker</span>
+      <span class="mobile-quick-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="img" focusable="false">
+          <rect class="quick-icon-primary" x="5" y="10" width="14" height="10" rx="2"></rect>
+          <path class="quick-icon-accent" d="M8 10V8a4 4 0 0 1 8 0v2"></path>
+          <circle class="quick-icon-primary" cx="12" cy="15" r="1.2"></circle>
+        </svg>
+      </span>
     </button>
     <button id="quickNavStatsBtn" class="mobile-quick-btn" type="button" title="Statistics" aria-label="Statistics">
-      <span class="mobile-quick-icon" aria-hidden="true">📊</span>
-      <span class="mobile-quick-label">Stats</span>
+      <span class="mobile-quick-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="img" focusable="false">
+          <path class="quick-icon-primary" d="M4 20H20"></path>
+          <rect class="quick-icon-accent-fill" x="6" y="12" width="3" height="6" rx="1"></rect>
+          <rect class="quick-icon-primary-fill" x="11" y="9" width="3" height="9" rx="1"></rect>
+          <rect class="quick-icon-accent-fill" x="16" y="6" width="3" height="12" rx="1"></rect>
+        </svg>
+      </span>
     </button>
     <button id="quickNavLoadBtn" class="mobile-quick-btn" type="button" title="Load dashboard" aria-label="Load dashboard">
-      <span class="mobile-quick-icon" aria-hidden="true">🔄</span>
-      <span class="mobile-quick-label">Load</span>
+      <span class="mobile-quick-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="img" focusable="false">
+          <path class="quick-icon-primary" d="M20 12a8 8 0 1 1-2.34-5.66"></path>
+          <path class="quick-icon-accent" d="M20 4v5h-5"></path>
+        </svg>
+      </span>
     </button>
   </nav>
 

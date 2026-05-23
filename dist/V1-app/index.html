@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260522-05" />
+  <link rel="stylesheet" href="./styles.css?v=20260523-01" />
 </head>
 <body>
   <main class="app-shell">
@@ -75,7 +75,7 @@
       </div>
     </section>
 
-    <section class="card auth-only" hidden>
+    <section id="activitySection" class="card auth-only" hidden>
       <h2>Lockers</h2>
       <p class="legend">
         <span class="dot dot-green"></span> available
@@ -261,7 +261,22 @@
     </section>
   </main>
 
+  <nav id="mobileQuickNav" class="mobile-quick-nav auth-only" hidden aria-label="Quick navigation">
+    <button id="quickNavLockerBtn" class="mobile-quick-btn" type="button" title="Locker" aria-label="Locker">
+      <span class="mobile-quick-icon" aria-hidden="true">🔒</span>
+      <span class="mobile-quick-label">Locker</span>
+    </button>
+    <button id="quickNavStatsBtn" class="mobile-quick-btn" type="button" title="Statistics" aria-label="Statistics">
+      <span class="mobile-quick-icon" aria-hidden="true">📊</span>
+      <span class="mobile-quick-label">Stats</span>
+    </button>
+    <button id="quickNavLoadBtn" class="mobile-quick-btn" type="button" title="Load dashboard" aria-label="Load dashboard">
+      <span class="mobile-quick-icon" aria-hidden="true">🔄</span>
+      <span class="mobile-quick-label">Load</span>
+    </button>
+  </nav>
+
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260522-05"></script>
+  <script src="./app.js?v=20260523-01"></script>
 </body>
 </html>

@@ -210,6 +210,11 @@ const el = {
   statsCustomRangeLegacy: document.getElementById("statsCustomRangeLegacy"),
   statsCustomFrom: document.getElementById("statsCustomFrom"),
   statsCustomTo: document.getElementById("statsCustomTo"),
+  activitySection: document.getElementById("activitySection"),
+  mobileQuickNav: document.getElementById("mobileQuickNav"),
+  quickNavLockerBtn: document.getElementById("quickNavLockerBtn"),
+  quickNavStatsBtn: document.getElementById("quickNavStatsBtn"),
+  quickNavLoadBtn: document.getElementById("quickNavLoadBtn"),
   downloadPurchasesCsvBtn: document.getElementById("downloadPurchasesCsvBtn"),
   downloadClimateCsvBtn: document.getElementById("downloadClimateCsvBtn"),
   activityLogs: document.getElementById("activityLogs"),
@@ -565,9 +570,30 @@ function setAuthLayoutVisible(isAuthenticated) {
     el.signedInUser.value = isAuthenticated ? getSignedInUserLabel() : "-";
   }
 
+  if (el.mobileQuickNav) {
+    el.mobileQuickNav.hidden = !isAuthenticated;
+  }
+
   if (!isAuthenticated) {
     scheduleAuthFieldBlur();
   }
+}
+
+function scrollToAuthSection(target) {
+  if (!target || target.hidden) return;
+  window.requestAnimationFrame(() => {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function scrollToLockerSection() {
+  const target = el.lockerGrid?.closest(".auth-only") || el.lockerGrid?.closest("section");
+  scrollToAuthSection(target);
+}
+
+function scrollToStatsSection() {
+  const target = el.adminStats?.closest(".auth-only") || el.adminStats?.closest("section");
+  scrollToAuthSection(target);
 }
 
 function parseDateMaybe(value) {
@@ -3910,6 +3936,24 @@ function wireEvents() {
   }
   if (el.downloadClimateCsvBtn) {
     el.downloadClimateCsvBtn.addEventListener("click", downloadClimateCsv);
+  }
+
+  if (el.quickNavLockerBtn) {
+    el.quickNavLockerBtn.addEventListener("click", () => {
+      scrollToLockerSection();
+    });
+  }
+
+  if (el.quickNavStatsBtn) {
+    el.quickNavStatsBtn.addEventListener("click", () => {
+      scrollToStatsSection();
+    });
+  }
+
+  if (el.quickNavLoadBtn) {
+    el.quickNavLoadBtn.addEventListener("click", () => {
+      loadDashboard().catch((e) => setStatus(`Failed to load dashboard: ${e.message}`));
+    });
   }
 
   if (el.signInBtn) {

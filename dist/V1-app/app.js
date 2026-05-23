@@ -3952,7 +3952,7 @@ function wireEvents() {
 
   if (el.quickNavLoadBtn) {
     el.quickNavLoadBtn.addEventListener("click", () => {
-      loadDashboard().catch((e) => setStatus(`Failed to load dashboard: ${e.message}`));
+      loadDashboard({ quiet: true }).catch((e) => setStatus(`Failed to load dashboard: ${e.message}`));
     });
   }
 

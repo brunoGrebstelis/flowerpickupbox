@@ -489,7 +489,7 @@ button:hover {
   gap: 0;
   width: min(100% - 28px, 560px);
   padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.74);
   border: 1px solid #d8e0ed;
   border-radius: 999px;
   box-shadow: 0 8px 20px rgba(16, 35, 70, 0.18);
@@ -521,16 +521,16 @@ button:hover {
 }
 
 .mobile-quick-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .mobile-quick-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: block;
 }
 
@@ -547,7 +547,7 @@ button:hover {
 }
 
 .mobile-quick-icon .quick-icon-accent {
-  stroke: #2fa46b;
+  stroke: #1f3556;
   stroke-width: 1.8;
 }
 
@@ -556,7 +556,7 @@ button:hover {
 }
 
 .mobile-quick-icon .quick-icon-accent-fill {
-  fill: #2fa46b;
+  fill: #1f3556;
 }
 
 .mobile-quick-icon .quick-icon-primary-fill,
@@ -1387,7 +1387,7 @@ input.failed {
 
   .mobile-quick-icon,
   .mobile-quick-icon svg {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
   }
 }

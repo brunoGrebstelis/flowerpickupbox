@@ -3740,7 +3740,9 @@ async function restoreSelectionAndAutoloadDashboard() {
 }
 
 function wireEvents() {
-  el.apiBaseUrl.value = state.apiBaseUrl;
+  if (el.apiBaseUrl) {
+    el.apiBaseUrl.value = state.apiBaseUrl;
+  }
 
   [el.lockerPrice, el.colorR, el.colorG, el.colorB, el.setTemp].forEach((input) => {
     if (!input) return;
@@ -3765,12 +3767,14 @@ function wireEvents() {
     }
   });
 
-  el.apiBaseUrl.addEventListener("change", () => {
-    state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
-    if (state.apiBaseUrl) {
-      localStorage.setItem(STORAGE_KEYS.apiBaseUrl, state.apiBaseUrl);
-    }
-  });
+  if (el.apiBaseUrl) {
+    el.apiBaseUrl.addEventListener("change", () => {
+      state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
+      if (state.apiBaseUrl) {
+        localStorage.setItem(STORAGE_KEYS.apiBaseUrl, state.apiBaseUrl);
+      }
+    });
+  }
 
   el.userSelect.addEventListener("change", () => {
     if (!state.auth.isAuthenticated) return;
@@ -4037,6 +4041,7 @@ async function init() {
   if (el.authPassword) {
     el.authPassword.value = "";
   }
+  localStorage.removeItem("authPassword");
   setNewPasswordChallengeVisible(false);
   blurActiveAuthFieldOnInit();
 

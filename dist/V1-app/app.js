@@ -3011,11 +3011,14 @@ async function sendCommandAndDebouncedRefresh(
 }
 
 async function loadInitial() {
-  state.apiBaseUrl = el.apiBaseUrl.value.trim().replace(/\/$/, "");
+  state.apiBaseUrl = String(el.apiBaseUrl?.value || state.apiBaseUrl || DEFAULT_API_BASE_URL).trim().replace(/\/$/, "");
   if (!state.apiBaseUrl) {
     throw new Error("API URL is empty. Paste the HttpApiUrl output from CoreDataPlatformStack (execute-api URL).");
   }
 
+  if (el.apiBaseUrl) {
+    el.apiBaseUrl.value = state.apiBaseUrl;
+  }
   localStorage.setItem(STORAGE_KEYS.apiBaseUrl, state.apiBaseUrl);
   const [users, machines] = await Promise.all([
     api("/users"),

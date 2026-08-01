@@ -766,6 +766,14 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   ctx.textAlign = "left";
   ctx.fillText("Revenue", 8, 14);
 
+  if (!nums.length) {
+    ctx.fillStyle = "#54637e";
+    ctx.font = "12px Segoe UI";
+    ctx.textAlign = "center";
+    ctx.fillText("No data", padLeft + chartW / 2, padTop + chartH / 2);
+    return { bars: [], width, height, points: [] };
+  }
+
   const points = nums.map((v, idx) => {
     const x = padLeft + idx * stepX;
     const y = padTop + chartH - (v / maxValue) * (chartH - 8);

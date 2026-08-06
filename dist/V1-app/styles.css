@@ -1560,12 +1560,14 @@ body.app-authenticated {
 .locker-command-sheet {
   position: fixed;
   left: 50%;
-  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  top: 50%;
+  bottom: auto;
   z-index: 1500;
   width: min(720px, calc(100% - 24px));
-  max-height: min(78vh, 720px);
+  max-height: min(calc(100dvh - 32px), 820px);
   overflow-y: auto;
-  transform: translateX(-50%);
+  overscroll-behavior: contain;
+  transform: translate(-50%, -50%);
   border-radius: 18px;
   box-shadow: 0 20px 60px rgba(12, 24, 48, 0.28);
 }
@@ -1872,11 +1874,13 @@ body.app-authenticated {
   }
 
   .locker-command-sheet {
-    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    top: 50%;
+    bottom: auto;
     width: calc(100% - 12px);
-    max-height: calc(100dvh - 84px);
+    max-height: calc(100dvh - 24px);
     padding: 12px;
-    border-radius: 18px 18px 12px 12px;
+    transform: translate(-50%, -50%);
+    border-radius: 18px;
   }
 
   .locker-command-sheet .form-row {

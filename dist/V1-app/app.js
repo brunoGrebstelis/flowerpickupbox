@@ -93,6 +93,7 @@ const state = {
   selectedMachineId: null,
   selectedCompanyId: null,
   selectedRole: null,
+  currentMachine: null,
   lockers: [],
   selectedLockerId: null,
   machineStatus: null,
@@ -121,8 +122,10 @@ const state = {
     auto: true,
   },
   ui: {
+    activeView: "service",
+    lockerCommandsOpen: false,
     lightingCollapsed: true,
-    machineCommandsCollapsed: true,
+    machineCommandsCollapsed: false,
     climateCollapsed: true,
   },
   latestStatsRaw: {
@@ -211,10 +214,17 @@ const el = {
   statsCustomFrom: document.getElementById("statsCustomFrom"),
   statsCustomTo: document.getElementById("statsCustomTo"),
   activitySection: document.getElementById("activitySection"),
+  appViews: document.getElementById("appViews"),
+  serviceView: document.getElementById("serviceView"),
+  settingsView: document.getElementById("settingsView"),
+  statsView: document.getElementById("statsView"),
+  lockerCommandsSheet: document.getElementById("lockerCommandsSheet"),
+  lockerSheetBackdrop: document.getElementById("lockerSheetBackdrop"),
+  closeLockerCommandsBtn: document.getElementById("closeLockerCommandsBtn"),
   mobileQuickNav: document.getElementById("mobileQuickNav"),
-  quickNavLockerBtn: document.getElementById("quickNavLockerBtn"),
+  quickNavServiceBtn: document.getElementById("quickNavServiceBtn"),
+  quickNavSettingsBtn: document.getElementById("quickNavSettingsBtn"),
   quickNavStatsBtn: document.getElementById("quickNavStatsBtn"),
-  quickNavLoadBtn: document.getElementById("quickNavLoadBtn"),
   downloadPurchasesCsvBtn: document.getElementById("downloadPurchasesCsvBtn"),
   downloadClimateCsvBtn: document.getElementById("downloadClimateCsvBtn"),
   activityLogs: document.getElementById("activityLogs"),
@@ -554,6 +564,7 @@ function formatUserFullName(name, surname) {
 }
 
 function setAuthLayoutVisible(isAuthenticated) {
+  document.body.classList.toggle("app-authenticated", isAuthenticated);
   if (el.signInCard) {
     el.signInCard.hidden = isAuthenticated;
   }
@@ -575,25 +586,66 @@ function setAuthLayoutVisible(isAuthenticated) {
   }
 
   if (!isAuthenticated) {
+    state.ui.activeView = "service";
+    closeLockerCommands();
     scheduleAuthFieldBlur();
+  } else {
+    setActiveView(state.ui.activeView);
   }
 }
 
-function scrollToAuthSection(target) {
-  if (!target || target.hidden) return;
+function setActiveView(viewName, options = {}) {
+  const normalized = ["service", "settings", "stats"].includes(viewName) ? viewName : "service";
+  state.ui.activeView = normalized;
+
+  [el.serviceView, el.settingsView, el.statsView].filter(Boolean).forEach((panel) => {
+    const isActive = panel.dataset.view === normalized;
+    panel.hidden = !isActive;
+    panel.classList.toggle("active", isActive);
+  });
+
+  [el.quickNavServiceBtn, el.quickNavSettingsBtn, el.quickNavStatsBtn].filter(Boolean).forEach((button) => {
+    const isActive = button.dataset.viewTarget === normalized;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+
+  if (normalized !== "service") {
+    closeLockerCommands();
+  }
+
+  if (el.appViews) {
+    el.appViews.scrollTop = 0;
+  }
+
+  if (normalized === "stats") {
+    window.requestAnimationFrame(() => {
+      state.chartRenderSignature = "";
+      applyAdminStatsView();
+    });
+  }
+
+  if (options.focus) {
+    document.querySelector(`[data-view-target="${normalized}"]`)?.focus();
+  }
+}
+
+function openLockerCommands() {
+  if (!getSelectedLocker() || !el.lockerCommandsSheet) return;
+  state.ui.lockerCommandsOpen = true;
+  el.lockerCommandsSheet.hidden = false;
+  if (el.lockerSheetBackdrop) el.lockerSheetBackdrop.hidden = false;
+  document.body.classList.add("locker-sheet-open");
   window.requestAnimationFrame(() => {
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.closeLockerCommandsBtn?.focus({ preventScroll: true });
   });
 }
 
-function scrollToLockerSection() {
-  const target = el.lockerGrid?.closest(".auth-only") || el.lockerGrid?.closest("section");
-  scrollToAuthSection(target);
-}
-
-function scrollToStatsSection() {
-  const target = el.adminStats?.closest(".auth-only") || el.adminStats?.closest("section");
-  scrollToAuthSection(target);
+function closeLockerCommands() {
+  state.ui.lockerCommandsOpen = false;
+  if (el.lockerCommandsSheet) el.lockerCommandsSheet.hidden = true;
+  if (el.lockerSheetBackdrop) el.lockerSheetBackdrop.hidden = true;
+  document.body.classList.remove("locker-sheet-open");
 }
 
 function parseDateMaybe(value) {
@@ -2500,7 +2552,11 @@ function renderLightingModes() {
     button.className = `lighting-mode-btn${state.lightingModeValue === mode.value ? " active" : ""}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
     button.textContent = mode.label;
     button.addEventListener("click", () => {
-      handleSetLightingMode(mode.value).catch((e) => setStatus(`Set lighting failed: ${e.message}`));
+      handleSetLightingMode(mode.value)
+        .then((response) => {
+          if (response) closeLockerCommands();
+        })
+        .catch((e) => setStatus(`Set lighting failed: ${e.message}`));
     });
     el.lightingModeButtons.appendChild(button);
   });
@@ -2675,6 +2731,7 @@ function resetDashboard() {
   renderPurchaseLogs([]);
   el.lockerGrid.innerHTML = "";
   state.lockers = [];
+  state.currentMachine = null;
   state.selectedLockerId = null;
   state.machineStatus = null;
   state.pendingLockerPriceById.clear();
@@ -2684,6 +2741,7 @@ function resetDashboard() {
     state.dbRefreshDebounceTimerId = null;
   }
   clearPendingControls();
+  closeLockerCommands();
   setSelectedLockerText();
   syncSelectedLockerFormFields();
   syncControlModesFromStatusAndLocker();
@@ -2734,21 +2792,6 @@ function syncSelectedLockerFormFields() {
   }
 }
 
-function scrollLockerCommandsIntoViewOnMobile() {
-  if (!window.matchMedia("(max-width: 768px)").matches) {
-    return;
-  }
-
-  const commandsCard = el.selectedLockerText ? el.selectedLockerText.closest(".card") : null;
-  if (!commandsCard) {
-    return;
-  }
-
-  window.requestAnimationFrame(() => {
-    commandsCard.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-}
-
 function lockerColorClass(locker) {
   if (coerceBoolean(locker.sold)) return "red";
   if (lockerIsOpened(locker) && !coerceBoolean(locker.sold)) return "green";
@@ -2763,32 +2806,107 @@ function lockerStateLabel(locker) {
   return "FREE";
 }
 
+function createLockerButton(locker, placement = null) {
+  const button = document.createElement("button");
+  const placementClass = placement ? ` locker-size-${placement.size.toLowerCase()}` : "";
+  button.type = "button";
+  button.className = `locker-btn ${lockerColorClass(locker)}${placementClass}${locker.locker_id === state.selectedLockerId ? " active" : ""}${lockerIsOpened(locker) ? " opened-text" : ""}`;
+  button.setAttribute("aria-label", `Locker ${locker.locker_number}, ${lockerStateLabel(locker).toLowerCase()}`);
+  button.innerHTML = `<span>${placement ? "" : "L"}${locker.locker_number}</span><small>${lockerStateLabel(locker)}</small>`;
+  button.addEventListener("click", () => {
+    state.selectedLockerId = locker.locker_id;
+    setSelectedLockerText();
+    syncSelectedLockerFormFields();
+    state.lightingModeValue = Number.isInteger(Number(locker.lighting_mode)) ? Number(locker.lighting_mode) : 0;
+    renderLockers();
+    renderLightingModes();
+    openLockerCommands();
+  });
+  return button;
+}
+
+function parseLockerPlacement(rawPlacement) {
+  const raw = String(rawPlacement || "").trim();
+  if (!raw) return null;
+
+  const parts = raw.split(";").map((part) => part.trim()).filter(Boolean);
+  if (!parts.length) return null;
+
+  const seenLockerNumbers = new Set();
+  const placements = [];
+  for (const [index, part] of parts.entries()) {
+    const match = part.match(/^(\d+)-(\d+)([LMS])$/i);
+    if (!match) return null;
+
+    const lockerNumber = Number(match[1]);
+    const row = Number(match[2]);
+    const size = match[3].toUpperCase();
+    if (!Number.isInteger(lockerNumber) || lockerNumber < 1 || !Number.isInteger(row) || row < 1 || seenLockerNumbers.has(lockerNumber)) {
+      return null;
+    }
+
+    seenLockerNumbers.add(lockerNumber);
+    placements.push({ lockerNumber, row, size, index });
+  }
+
+  const lockerNumbers = new Set(state.lockers.map((locker) => Number(locker.locker_number)));
+  if (placements.length !== lockerNumbers.size || placements.some((placement) => !lockerNumbers.has(placement.lockerNumber))) {
+    return null;
+  }
+
+  return placements;
+}
+
+function getCurrentMachine() {
+  if (state.currentMachine) return state.currentMachine;
+  return state.allowedMachines.find((item) => Number(item.machine.machine_id) === Number(state.selectedMachineId))?.machine || null;
+}
+
+function renderPlacedLockers(placements) {
+  const lockersByNumber = new Map(state.lockers.map((locker) => [Number(locker.locker_number), locker]));
+  const rowNumbers = [...new Set(placements.map((placement) => placement.row))].sort((a, b) => a - b);
+  const rows = document.createElement("div");
+  rows.className = "locker-layout-rows";
+  rows.style.setProperty("--locker-row-count", String(rowNumbers.length));
+
+  rowNumbers.forEach((rowNumber, rowIndex) => {
+    const row = document.createElement("div");
+    row.className = `locker-layout-row${rowIndex === 0 ? " is-first" : ""}${rowIndex === rowNumbers.length - 1 ? " is-last" : ""}`;
+    row.dataset.row = String(rowNumber);
+    placements
+      .filter((placement) => placement.row === rowNumber)
+      .sort((a, b) => a.index - b.index)
+      .forEach((placement) => {
+        row.appendChild(createLockerButton(lockersByNumber.get(placement.lockerNumber), placement));
+      });
+    rows.appendChild(row);
+  });
+
+  el.lockerGrid.appendChild(rows);
+}
+
 function renderLockers() {
   el.lockerGrid.innerHTML = "";
+  el.lockerGrid.classList.remove("has-placement");
   if (!state.lockers.length) {
     el.lockerGrid.innerHTML = "<p class='subtle'>No lockers found for this machine.</p>";
     state.selectedLockerId = null;
+    closeLockerCommands();
     setSelectedLockerText();
     syncSelectedLockerFormFields();
     syncBusyUi();
     return;
   }
 
-  state.lockers.forEach((locker) => {
-    const button = document.createElement("button");
-    button.className = `locker-btn ${lockerColorClass(locker)}${locker.locker_id === state.selectedLockerId ? " active" : ""}${lockerIsOpened(locker) ? " opened-text" : ""}`;
-    button.innerHTML = `<span>L${locker.locker_number}</span><small>${lockerStateLabel(locker)}</small>`;
-    button.addEventListener("click", () => {
-      state.selectedLockerId = locker.locker_id;
-      setSelectedLockerText();
-      syncSelectedLockerFormFields();
-      state.lightingModeValue = Number.isInteger(Number(locker.lighting_mode)) ? Number(locker.lighting_mode) : 0;
-      renderLockers();
-      renderLightingModes();
-      scrollLockerCommandsIntoViewOnMobile();
+  const placements = parseLockerPlacement(getCurrentMachine()?.locker_placement);
+  if (placements) {
+    el.lockerGrid.classList.add("has-placement");
+    renderPlacedLockers(placements);
+  } else {
+    state.lockers.forEach((locker) => {
+      el.lockerGrid.appendChild(createLockerButton(locker));
     });
-    el.lockerGrid.appendChild(button);
-  });
+  }
 
   syncBusyUi();
 }
@@ -3127,7 +3245,7 @@ async function bootstrapAuthenticatedApp() {
   state.auth.isAuthenticated = true;
   setAuthLayoutVisible(true);
   state.ui.lightingCollapsed = true;
-  state.ui.machineCommandsCollapsed = true;
+  state.ui.machineCommandsCollapsed = false;
   state.ui.climateCollapsed = true;
   syncCollapsibleUi();
   const signedInLabel = getSignedInUserLabel() || authUserEmail || "authenticated user";
@@ -3313,6 +3431,7 @@ async function loadDashboard(options = {}) {
   ]);
 
   state.machineStatus = status;
+  state.currentMachine = machine;
   state.lockers = lockers;
 
   state.lockers.forEach((locker) => {
@@ -3367,8 +3486,6 @@ async function loadDashboard(options = {}) {
   }
 
   const _unusedUser = user;
-  const _unusedMachine = machine;
-
   renderActivityLogs(activityLogs || []);
   renderPurchaseLogs(purchaseLogs || []);
   renderLockers();
@@ -3414,7 +3531,7 @@ async function loadAdminStats(machineId) {
 
 async function handleOpenLocker() {
   if (!requireContext({ locker: true })) return;
-  await sendCommandAndDebouncedRefresh(
+  return sendCommandAndDebouncedRefresh(
     COMMAND_IDS.OPEN_LOCKER,
     {},
     state.selectedLockerId,
@@ -3444,17 +3561,17 @@ async function handleSetPrice() {
   syncSelectedLockerFormFields();
 
   try {
-  await sendCommandAndDebouncedRefresh(
-    COMMAND_IDS.SET_LOCKER_PRICE,
-    { price },
-    lockerId,
-    "Set locker price",
-    ["setPrice"],
-    {
-      verifyAfterRefresh: true,
-      expected: price,
-    }
-  );
+    return await sendCommandAndDebouncedRefresh(
+      COMMAND_IDS.SET_LOCKER_PRICE,
+      { price },
+      lockerId,
+      "Set locker price",
+      ["setPrice"],
+      {
+        verifyAfterRefresh: true,
+        expected: price,
+      }
+    );
   } catch (error) {
     state.pendingLockerPriceById.delete(lockerId);
     throw error;
@@ -3483,7 +3600,7 @@ async function handleSetColor() {
   syncSelectedLockerFormFields();
 
   try {
-    await sendCommandAndDebouncedRefresh(
+    return await sendCommandAndDebouncedRefresh(
       COMMAND_IDS.SET_LOCKER_COLOR,
       { color_r, color_g, color_b },
       lockerId,
@@ -3527,7 +3644,7 @@ async function handleSetColorAll() {
   syncSelectedLockerFormFields();
 
   try {
-    await sendCommandAndDebouncedRefresh(
+    return await sendCommandAndDebouncedRefresh(
       COMMAND_IDS.SET_LOCKER_COLOR,
       {
         color_r,
@@ -3558,7 +3675,7 @@ async function handleSetLightingMode(modeValue) {
     return;
   }
 
-  await sendCommandAndDebouncedRefresh(
+  return sendCommandAndDebouncedRefresh(
     COMMAND_IDS.SET_LIGHTING_MODE,
     { lighting_mode: modeValue },
     state.selectedLockerId,
@@ -3795,10 +3912,19 @@ function wireEvents() {
     el.clearBtn.addEventListener("click", clearAll);
   }
 
-  el.openLockerBtn.addEventListener("click", () => handleOpenLocker().catch((e) => setStatus(`Open locker failed: ${e.message}`)));
-  el.setPriceBtn.addEventListener("click", () => handleSetPrice().catch((e) => setStatus(`Set price failed: ${e.message}`)));
-  el.setColorBtn.addEventListener("click", () => handleSetColor().catch((e) => setStatus(`Set color failed: ${e.message}`)));
-  el.setColorAllBtn.addEventListener("click", () => handleSetColorAll().catch((e) => setStatus(`Set all colors failed: ${e.message}`)));
+  const wireLockerCommand = (button, handler, errorLabel) => {
+    button.addEventListener("click", () => {
+      handler()
+        .then((response) => {
+          if (response) closeLockerCommands();
+        })
+        .catch((e) => setStatus(`${errorLabel}: ${e.message}`));
+    });
+  };
+  wireLockerCommand(el.openLockerBtn, handleOpenLocker, "Open locker failed");
+  wireLockerCommand(el.setPriceBtn, handleSetPrice, "Set price failed");
+  wireLockerCommand(el.setColorBtn, handleSetColor, "Set color failed");
+  wireLockerCommand(el.setColorAllBtn, handleSetColorAll, "Set all colors failed");
   el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
   el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
 
@@ -3953,23 +4079,23 @@ function wireEvents() {
     el.downloadClimateCsvBtn.addEventListener("click", downloadClimateCsv);
   }
 
-  if (el.quickNavLockerBtn) {
-    el.quickNavLockerBtn.addEventListener("click", () => {
-      scrollToLockerSection();
+  [el.quickNavServiceBtn, el.quickNavSettingsBtn, el.quickNavStatsBtn].filter(Boolean).forEach((button) => {
+    button.addEventListener("click", () => {
+      setActiveView(button.dataset.viewTarget || "service");
     });
-  }
+  });
 
-  if (el.quickNavStatsBtn) {
-    el.quickNavStatsBtn.addEventListener("click", () => {
-      scrollToStatsSection();
-    });
+  if (el.closeLockerCommandsBtn) {
+    el.closeLockerCommandsBtn.addEventListener("click", closeLockerCommands);
   }
-
-  if (el.quickNavLoadBtn) {
-    el.quickNavLoadBtn.addEventListener("click", () => {
-      loadDashboard({ quiet: true }).catch((e) => setStatus(`Failed to load dashboard: ${e.message}`));
-    });
+  if (el.lockerSheetBackdrop) {
+    el.lockerSheetBackdrop.addEventListener("click", closeLockerCommands);
   }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.ui.lockerCommandsOpen) {
+      closeLockerCommands();
+    }
+  });
 
   if (el.signInBtn) {
     el.signInBtn.addEventListener("click", () => {

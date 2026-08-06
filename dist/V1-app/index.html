@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260801-01" />
+  <link rel="stylesheet" href="./styles.css?v=20260806-01" />
 </head>
 <body>
   <main class="app-shell">
@@ -40,229 +40,207 @@
       </div>
     </section>
 
-    <section id="sessionCard" class="card selector-card auth-only" hidden>
-      <div class="field">
+    <section id="sessionCard" class="card dashboard-context auth-only" hidden>
+      <div class="field signed-in-field">
         <label>Signed in user</label>
         <input id="signedInUser" type="text" readonly value="-" />
       </div>
-      <div class="field">
+      <div class="field machine-field">
         <label for="machineSelect">Machine</label>
         <select id="machineSelect" disabled>
           <option value="">Choose machine</option>
         </select>
       </div>
-      <div class="actions">
-        <button id="loadBtn" class="btn btn-primary">Load Dashboard</button>
+      <div class="actions session-actions">
+        <button id="loadBtn" class="btn btn-primary" type="button">Refresh</button>
         <button id="signOutBtn" class="btn" type="button">Sign out</button>
       </div>
       <select id="userSelect" hidden>
         <option value="">Choose user</option>
       </select>
-    </section>
-
-    <p id="statusBar" class="status"></p>
-
-    <section id="machineStrip" class="card machine-strip auth-only" hidden>
-      <div class="machine-strip-temp-wrap">
-        <p id="topCurrentTemperature" class="machine-strip-temp">-</p>
-      </div>
-      <div class="machine-strip-heartbeat-wrap">
-        <span id="topHeartbeatDot" class="heartbeat-dot heartbeat-unknown" aria-hidden="true"></span>
-        <p id="topHeartbeatText" class="machine-strip-heartbeat" hidden>Unknown</p>
-      </div>
-      <div class="machine-strip-opmode-wrap">
-        <button id="toggleOpModeBtn" class="btn state-toggle off" type="button">Operation mode: OFF</button>
+      <div id="machineStrip" class="machine-strip">
+        <div class="machine-strip-temp-wrap" title="Current temperature">
+          <p id="topCurrentTemperature" class="machine-strip-temp">-</p>
+        </div>
+        <div class="machine-strip-heartbeat-wrap" title="Machine connection">
+          <span id="topHeartbeatDot" class="heartbeat-dot heartbeat-unknown" aria-hidden="true"></span>
+          <p id="topHeartbeatText" class="machine-strip-heartbeat" hidden>Unknown</p>
+        </div>
+        <div class="machine-strip-opmode-wrap">
+          <button id="toggleOpModeBtn" class="btn state-toggle off" type="button">Operation mode: OFF</button>
+        </div>
       </div>
     </section>
 
-    <section id="activitySection" class="card auth-only" hidden>
-      <h2>Lockers</h2>
-      <p class="legend">
-        <span class="dot dot-green"></span> available
-        <span class="dot dot-red"></span> sold
-        <span class="dot dot-orange"></span> left open
-      </p>
-      <div id="lockerGrid" class="locker-grid"></div>
-    </section>
+    <p id="statusBar" class="status" aria-live="polite"></p>
 
-    <section class="grid grid-2 auth-only" hidden>
-      <article class="card">
-        <h2>Locker Commands</h2>
-        <p id="selectedLockerText" class="subtle">No locker selected</p>
-        <div class="form-row">
-          <label for="lockerPrice">Price</label>
-          <input id="lockerPrice" type="number" inputmode="decimal" step="0.01" min="0" max="9999" placeholder="e.g. 12.50" />
-          <button id="setPriceBtn" class="btn">Set price</button>
-        </div>
-        <div class="form-row">
-          <label>Color RGB</label>
-          <div class="rgb-row">
-            <input id="colorR" type="number" inputmode="numeric" min="0" max="255" placeholder="R" />
-            <input id="colorG" type="number" inputmode="numeric" min="0" max="255" placeholder="G" />
-            <input id="colorB" type="number" inputmode="numeric" min="0" max="255" placeholder="B" />
+    <div id="appViews" class="app-views auth-only" hidden>
+      <section id="serviceView" class="app-view service-view" data-view="service" role="tabpanel" aria-labelledby="quickNavServiceBtn">
+        <article id="activitySection" class="card locker-card">
+          <div class="locker-card-heading">
+            <h2>Lockers</h2>
+            <p class="legend">
+              <span class="dot dot-green"></span> available
+              <span class="dot dot-red"></span> sold
+              <span class="dot dot-orange"></span> left open
+            </p>
           </div>
-          <div class="actions">
-            <input id="colorPicker" type="color" value="#ffffff" />
-            <button id="setColorBtn" class="btn">Set color</button>
-            <button id="setColorAllBtn" class="btn">All</button>
-          </div>
-        </div>
-        <div class="mode-block collapsible-block collapsed" id="lightingModesBlock">
-          <button id="lightingToggleBtn" class="btn collapse-toggle" type="button">Lighting modes</button>
-          <div id="lightingModesContent" class="collapse-content" hidden>
-            <label>Lighting effects for selected locker</label>
-            <div id="lightingModeButtons" class="lighting-mode-list"></div>
-          </div>
-        </div>
-        <div class="command-row">
-          <button id="openLockerBtn" class="btn btn-primary">Open locker</button>
-        </div>
-      </article>
+          <div id="lockerGrid" class="locker-grid"></div>
+        </article>
 
-      <article class="card">
-        <h2>Machine Commands</h2>
-        <div class="mode-block collapsible-block collapsed" id="machineCommandsBlock">
-          <button id="machineCommandsToggleBtn" class="btn collapse-toggle" type="button">Machine commands</button>
-          <div id="machineCommandsContent" class="collapse-content" hidden>
-            <div class="form-row">
-              <label for="setTemp">Set temperature (°C)</label>
-              <input id="setTemp" type="number" inputmode="decimal" step="0.1" placeholder="e.g. 7.5" />
-              <button id="setTempBtn" class="btn">Set temperature</button>
+        <div id="lockerSheetBackdrop" class="locker-sheet-backdrop" hidden></div>
+        <article id="lockerCommandsSheet" class="card locker-command-sheet" role="dialog" aria-modal="true" aria-labelledby="lockerCommandsTitle" hidden>
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-heading">
+            <div>
+              <h2 id="lockerCommandsTitle">Locker Commands</h2>
+              <p id="selectedLockerText" class="subtle">No locker selected</p>
             </div>
-            <div class="mode-block">
-              <label>Set fans</label>
-              <div id="fanButtons" class="fan-button-row"></div>
+            <button id="closeLockerCommandsBtn" class="sheet-close-btn" type="button" aria-label="Close locker commands">&times;</button>
+          </div>
+          <div class="form-row">
+            <label for="lockerPrice">Price</label>
+            <input id="lockerPrice" type="number" inputmode="decimal" step="0.01" min="0" max="9999" placeholder="e.g. 12.50" />
+            <button id="setPriceBtn" class="btn" type="button">Set price</button>
+          </div>
+          <div class="form-row">
+            <label>Color RGB</label>
+            <div class="rgb-row">
+              <input id="colorR" type="number" inputmode="numeric" min="0" max="255" placeholder="R" />
+              <input id="colorG" type="number" inputmode="numeric" min="0" max="255" placeholder="G" />
+              <input id="colorB" type="number" inputmode="numeric" min="0" max="255" placeholder="B" />
             </div>
-            <div class="mode-block">
-              <label>Head lights</label>
-              <div id="headlightButtons" class="headlight-button-row"></div>
+            <div class="actions">
+              <input id="colorPicker" type="color" value="#ffffff" aria-label="Choose color" />
+              <button id="setColorBtn" class="btn" type="button">Set color</button>
+              <button id="setColorAllBtn" class="btn" type="button">All</button>
             </div>
           </div>
-        </div>
-      </article>
-    </section>
-
-    <section class="grid grid-2 auth-only" hidden>
-      <article class="card">
-        <h2>Admin Statistics</h2>
-        <div class="admin-stats-controls">
-          <button id="statsPeriodToggleBtn" class="btn stats-period-title-btn" type="button">May 2026</button>
-          <div id="statsPeriodMenu" class="stats-period-menu" hidden>
-            <button class="btn stats-period-menu-item" type="button" data-period-value="this_month">This month</button>
-            <button class="btn stats-period-menu-item" type="button" data-period-value="last_month">Last month</button>
-            <button class="btn stats-period-menu-item" type="button" data-period-value="this_year">This year</button>
-            <button class="btn stats-period-menu-item" type="button" data-period-value="all_time">Total</button>
-            <button class="btn stats-period-menu-item" type="button" data-period-value="custom">Custom</button>
-          </div>
-          <div id="statsPeriodPanel" class="stats-period-panel period-native-select-host">
-            <label class="sr-only" for="statsPeriodSelect">Period</label>
-            <select id="statsPeriodSelect">
-              <option value="this_month" selected>This month</option>
-              <option value="last_month">Last month</option>
-              <option value="this_year">This year</option>
-              <option value="all_time">Total</option>
-              <option value="custom">Custom</option>
-            </select>
-          </div>
-          <div id="statsCustomRange" class="stats-custom-range" hidden>
-            <label for="statsCustomRangePicker">Date range</label>
-            <input id="statsCustomRangePicker" type="text" placeholder="Select start and end date" readonly />
-            <div id="statsCustomRangeLegacy" class="stats-custom-range-legacy" hidden>
-              <label for="statsCustomFrom">From</label>
-              <input id="statsCustomFrom" type="date" />
-              <label for="statsCustomTo">To</label>
-              <input id="statsCustomTo" type="date" />
+          <div class="mode-block collapsible-block collapsed" id="lightingModesBlock">
+            <button id="lightingToggleBtn" class="btn collapse-toggle" type="button">Lighting modes</button>
+            <div id="lightingModesContent" class="collapse-content" hidden>
+              <label>Lighting effects for selected locker</label>
+              <div id="lightingModeButtons" class="lighting-mode-list"></div>
             </div>
           </div>
-        </div>
-        <div id="adminStats" class="info-list admin-stats-summary">
-          <p class="placeholder">Only shown for admin users.</p>
-        </div>
-        <div class="admin-stats-details" id="adminStatsDetails" hidden>
-          <div class="chart-grid" id="chartGrid" hidden>
-            <article class="chart-card">
-              <h3 id="chartTitle">Purchases distribution</h3>
-              <canvas id="purchasesChart" height="170"></canvas>
-            </article>
-            <article class="chart-card">
-              <h3 id="chartTitle2">Revenue distribution (EUR)</h3>
-              <canvas id="revenueChart" height="170"></canvas>
-            </article>
+          <div class="command-row">
+            <button id="openLockerBtn" class="btn btn-primary" type="button">Open locker</button>
           </div>
-          <button id="downloadPurchasesCsvBtn" class="btn stats-export-btn" type="button">Download CSV</button>
-          <button id="toggleClimateDetailsBtn" class="btn collapse-toggle" type="button">Climate details</button>
-          <div id="climateDetailsContent" class="collapse-content" hidden>
-            <div id="adminClimateStats" class="info-list"></div>
-            <button id="downloadClimateCsvBtn" class="btn stats-export-btn" type="button">Download climate CSV</button>
+        </article>
+      </section>
+
+      <section id="settingsView" class="app-view settings-view" data-view="settings" role="tabpanel" aria-labelledby="quickNavSettingsBtn" hidden>
+        <article class="card settings-card">
+          <h2>Machine Commands</h2>
+          <div class="mode-block collapsible-block" id="machineCommandsBlock">
+            <button id="machineCommandsToggleBtn" class="btn collapse-toggle" type="button">Machine commands</button>
+            <div id="machineCommandsContent" class="collapse-content">
+              <div class="form-row">
+                <label for="setTemp">Set temperature (°C)</label>
+                <input id="setTemp" type="number" inputmode="decimal" step="0.1" placeholder="e.g. 7.5" />
+                <button id="setTempBtn" class="btn" type="button">Set temperature</button>
+              </div>
+              <div class="mode-block">
+                <label>Set fans</label>
+                <div id="fanButtons" class="fan-button-row"></div>
+              </div>
+              <div class="mode-block">
+                <label>Head lights</label>
+                <div id="headlightButtons" class="headlight-button-row"></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </article>
-      <article class="card">
-        <h2>Purchases</h2>
-        <p class="subtle">Shows latest 5 in view. Scroll down to see older purchases.</p>
-        <div class="table-scroll table-scroll-purchases">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Locker</th>
-                <th>Price</th>
-                <th>Time + date</th>
-              </tr>
-            </thead>
-            <tbody id="purchaseLogs">
-              <tr>
-                <td colspan="3" class="table-empty">-</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </article>
-    </section>
+        </article>
+      </section>
 
-    <section class="card auth-only" hidden>
-      <h2>Recent Activity</h2>
-      <div class="table-scroll table-scroll-activity">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Who?</th>
-              <th>When?</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="activityLogs">
-            <tr>
-              <td colspan="3" class="table-empty">-</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+      <section id="statsView" class="app-view stats-view" data-view="stats" role="tabpanel" aria-labelledby="quickNavStatsBtn" hidden>
+        <div class="grid grid-2">
+          <article class="card">
+            <h2>Admin Statistics</h2>
+            <div class="admin-stats-controls">
+              <button id="statsPeriodToggleBtn" class="btn stats-period-title-btn" type="button">May 2026</button>
+              <div id="statsPeriodMenu" class="stats-period-menu" hidden>
+                <button class="btn stats-period-menu-item" type="button" data-period-value="this_month">This month</button>
+                <button class="btn stats-period-menu-item" type="button" data-period-value="last_month">Last month</button>
+                <button class="btn stats-period-menu-item" type="button" data-period-value="this_year">This year</button>
+                <button class="btn stats-period-menu-item" type="button" data-period-value="all_time">Total</button>
+                <button class="btn stats-period-menu-item" type="button" data-period-value="custom">Custom</button>
+              </div>
+              <div id="statsPeriodPanel" class="stats-period-panel period-native-select-host">
+                <label class="sr-only" for="statsPeriodSelect">Period</label>
+                <select id="statsPeriodSelect">
+                  <option value="this_month" selected>This month</option>
+                  <option value="last_month">Last month</option>
+                  <option value="this_year">This year</option>
+                  <option value="all_time">Total</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div id="statsCustomRange" class="stats-custom-range" hidden>
+                <label for="statsCustomRangePicker">Date range</label>
+                <input id="statsCustomRangePicker" type="text" placeholder="Select start and end date" readonly />
+                <div id="statsCustomRangeLegacy" class="stats-custom-range-legacy" hidden>
+                  <label for="statsCustomFrom">From</label>
+                  <input id="statsCustomFrom" type="date" />
+                  <label for="statsCustomTo">To</label>
+                  <input id="statsCustomTo" type="date" />
+                </div>
+              </div>
+            </div>
+            <div id="adminStats" class="info-list admin-stats-summary">
+              <p class="placeholder">Only shown for admin users.</p>
+            </div>
+            <div class="admin-stats-details" id="adminStatsDetails" hidden>
+              <div class="chart-grid" id="chartGrid" hidden>
+                <article class="chart-card">
+                  <h3 id="chartTitle">Purchases distribution</h3>
+                  <canvas id="purchasesChart" height="170"></canvas>
+                </article>
+                <article class="chart-card">
+                  <h3 id="chartTitle2">Revenue distribution (EUR)</h3>
+                  <canvas id="revenueChart" height="170"></canvas>
+                </article>
+              </div>
+              <button id="downloadPurchasesCsvBtn" class="btn stats-export-btn" type="button">Download CSV</button>
+              <button id="toggleClimateDetailsBtn" class="btn collapse-toggle" type="button">Climate details</button>
+              <div id="climateDetailsContent" class="collapse-content" hidden>
+                <div id="adminClimateStats" class="info-list"></div>
+                <button id="downloadClimateCsvBtn" class="btn stats-export-btn" type="button">Download climate CSV</button>
+              </div>
+            </div>
+          </article>
+          <article class="card">
+            <h2>Purchases</h2>
+            <p class="subtle">Shows latest 5 in view. Scroll down to see older purchases.</p>
+            <div class="table-scroll table-scroll-purchases">
+              <table class="data-table">
+                <thead><tr><th>Locker</th><th>Price</th><th>Time + date</th></tr></thead>
+                <tbody id="purchaseLogs"><tr><td colspan="3" class="table-empty">-</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <article class="card">
+          <h2>Recent Activity</h2>
+          <div class="table-scroll table-scroll-activity">
+            <table class="data-table">
+              <thead><tr><th>Who?</th><th>When?</th><th>Action</th></tr></thead>
+              <tbody id="activityLogs"><tr><td colspan="3" class="table-empty">-</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
 
-    <section class="grid grid-3 auth-only" hidden>
-      <article class="card" hidden>
-        <h2>User Information</h2>
-        <div id="userInfo" class="info-list">
-          <p class="placeholder">Select a user and machine.</p>
-        </div>
-      </article>
-      <article class="card" hidden>
-        <h2>Machine Information</h2>
-        <div id="machineInfo" class="info-list">
-          <p class="placeholder">-</p>
-        </div>
-      </article>
-      <article class="card" hidden>
-        <h2>Machine Status</h2>
-        <div id="machineStatus" class="info-list">
-          <p class="placeholder">-</p>
-        </div>
-      </article>
-    </section>
+      <section class="grid grid-3 legacy-info" hidden>
+        <article class="card" hidden><div id="userInfo" class="info-list"></div></article>
+        <article class="card" hidden><div id="machineInfo" class="info-list"></div></article>
+        <article class="card" hidden><div id="machineStatus" class="info-list"></div></article>
+      </section>
+    </div>
   </main>
 
-  <nav id="mobileQuickNav" class="mobile-quick-nav auth-only" hidden aria-label="Quick navigation">
-    <button id="quickNavLockerBtn" class="mobile-quick-btn" type="button" title="Locker" aria-label="Locker">
+  <nav id="mobileQuickNav" class="mobile-quick-nav auth-only" hidden aria-label="Dashboard views" role="tablist">
+    <button id="quickNavServiceBtn" class="mobile-quick-btn active" type="button" role="tab" data-view-target="service" aria-controls="serviceView" aria-selected="true">
       <span class="mobile-quick-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" role="img" focusable="false">
           <rect class="quick-icon-primary" x="5" y="10" width="14" height="10" rx="2"></rect>
@@ -270,8 +248,18 @@
           <circle class="quick-icon-primary" cx="12" cy="15" r="1.2"></circle>
         </svg>
       </span>
+      <span>Service</span>
     </button>
-    <button id="quickNavStatsBtn" class="mobile-quick-btn" type="button" title="Statistics" aria-label="Statistics">
+    <button id="quickNavSettingsBtn" class="mobile-quick-btn" type="button" role="tab" data-view-target="settings" aria-controls="settingsView" aria-selected="false">
+      <span class="mobile-quick-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="img" focusable="false">
+          <circle class="quick-icon-primary" cx="12" cy="12" r="3"></circle>
+          <path class="quick-icon-primary" d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3v-4h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.5V3h4v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.5 1h.1v4h-.09A1.7 1.7 0 0 0 19.4 15Z"></path>
+        </svg>
+      </span>
+      <span>Settings</span>
+    </button>
+    <button id="quickNavStatsBtn" class="mobile-quick-btn" type="button" role="tab" data-view-target="stats" aria-controls="statsView" aria-selected="false">
       <span class="mobile-quick-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" role="img" focusable="false">
           <path class="quick-icon-primary" d="M4 20H20"></path>
@@ -280,18 +268,11 @@
           <rect class="quick-icon-accent-fill" x="16" y="6" width="3" height="12" rx="1"></rect>
         </svg>
       </span>
-    </button>
-    <button id="quickNavLoadBtn" class="mobile-quick-btn" type="button" title="Load dashboard" aria-label="Load dashboard">
-      <span class="mobile-quick-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" role="img" focusable="false">
-          <path class="quick-icon-primary" d="M20 12a8 8 0 1 1-2.34-5.66"></path>
-          <path class="quick-icon-accent" d="M20 4v5h-5"></path>
-        </svg>
-      </span>
+      <span>Stats</span>
     </button>
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260801-01"></script>
+  <script src="./app.js?v=20260806-01"></script>
 </body>
 </html>

@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260806-12" />
+  <link rel="stylesheet" href="./styles.css?v=20260806-13" />
 </head>
 <body>
   <main class="app-shell">
@@ -101,15 +101,15 @@
           </div>
           <div class="form-row price-command-row">
             <label for="lockerPrice">Price</label>
-            <input id="lockerPrice" type="number" inputmode="decimal" step="0.01" min="0" max="9999" placeholder="e.g. 12.50" />
+            <input id="lockerPrice" type="number" inputmode="decimal" step="0.01" min="0" max="9999" placeholder="0-9999" />
             <button id="setPriceBtn" class="btn" type="button">Set price</button>
           </div>
           <div class="form-row">
             <label>Color RGB</label>
             <div class="rgb-row">
-              <input id="colorR" type="number" inputmode="numeric" min="0" max="255" placeholder="R" />
-              <input id="colorG" type="number" inputmode="numeric" min="0" max="255" placeholder="G" />
-              <input id="colorB" type="number" inputmode="numeric" min="0" max="255" placeholder="B" />
+              <input id="colorR" type="number" inputmode="numeric" min="0" max="255" placeholder="0-255" aria-label="Red, 0 to 255" />
+              <input id="colorG" type="number" inputmode="numeric" min="0" max="255" placeholder="0-255" aria-label="Green, 0 to 255" />
+              <input id="colorB" type="number" inputmode="numeric" min="0" max="255" placeholder="0-255" aria-label="Blue, 0 to 255" />
             </div>
             <div class="actions">
               <input id="colorPicker" type="color" value="#ffffff" aria-label="Choose color" />
@@ -138,7 +138,7 @@
             <div id="machineCommandsContent" class="collapse-content">
               <div class="form-row">
                 <label for="setTemp">Set temperature (°C)</label>
-                <input id="setTemp" type="number" inputmode="decimal" step="0.1" placeholder="e.g. 7.5" />
+                <input id="setTemp" type="number" inputmode="decimal" step="0.1" max="25" placeholder="e.g. 7.5" />
                 <button id="setTempBtn" class="btn" type="button">Set temperature</button>
               </div>
               <div class="mode-block">
@@ -294,6 +294,6 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260806-12"></script>
+  <script src="./app.js?v=20260806-13"></script>
 </body>
 </html>

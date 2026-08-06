@@ -4279,9 +4279,10 @@ async function handleSetHeadLights(modeValue) {
 
 async function handleSetTemperature() {
   if (!requireContext()) return;
-  const set_temperature = Number(el.setTemp.value);
-  if (!Number.isFinite(set_temperature)) {
-    setStatus("Set temperature must be numeric.");
+  const rawTemperature = String(el.setTemp.value || "").trim();
+  const set_temperature = Number(rawTemperature);
+  if (!rawTemperature || !Number.isFinite(set_temperature) || set_temperature > 25) {
+    setStatus("Set temperature must be a number up to 25°C.");
     return;
   }
   await sendCommandAndDebouncedRefresh(
@@ -4399,6 +4400,7 @@ function wireEvents() {
   [el.colorR, el.colorG, el.colorB].forEach((input) => {
     enforceNumberInputRange(input, 0, 255);
   });
+  enforceNumberInputRange(el.setTemp, Number.NEGATIVE_INFINITY, 25);
 
   el.lockerPrice.addEventListener("pointerdown", () => {
     if (document.activeElement === el.lockerPrice && el.lockerPrice.dataset.fromDb === "1") {

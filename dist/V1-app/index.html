@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260806-01" />
+  <link rel="stylesheet" href="./styles.css?v=20260806-02" />
 </head>
 <body>
   <main class="app-shell">
@@ -60,7 +60,7 @@
       </select>
       <div id="machineStrip" class="machine-strip">
         <div class="machine-strip-temp-wrap" title="Current temperature">
-          <p id="topCurrentTemperature" class="machine-strip-temp">-</p>
+          <button id="topCurrentTemperature" class="machine-strip-temp" type="button" aria-haspopup="dialog" aria-controls="temperatureModal">-</button>
         </div>
         <div class="machine-strip-heartbeat-wrap" title="Machine connection">
           <span id="topHeartbeatDot" class="heartbeat-dot heartbeat-unknown" aria-hidden="true"></span>
@@ -72,7 +72,18 @@
       </div>
     </section>
 
-    <p id="statusBar" class="status" aria-live="polite"></p>
+    <div id="temperatureModal" class="temperature-modal" role="dialog" aria-modal="true" aria-labelledby="temperatureModalTitle" hidden>
+      <article class="card temperature-dialog">
+        <div class="sheet-heading">
+          <div>
+            <h2 id="temperatureModalTitle">Temperatures</h2>
+            <p id="temperatureMachineText" class="subtle">Current sensor readings</p>
+          </div>
+          <button id="closeTemperatureModalBtn" class="sheet-close-btn" type="button" aria-label="Close temperatures">&times;</button>
+        </div>
+        <div id="temperatureReadings" class="temperature-readings"></div>
+      </article>
+    </div>
 
     <div id="appViews" class="app-views auth-only" hidden>
       <section id="serviceView" class="app-view service-view" data-view="service" role="tabpanel" aria-labelledby="quickNavServiceBtn">
@@ -160,6 +171,8 @@
             <div class="admin-stats-controls">
               <button id="statsPeriodToggleBtn" class="btn stats-period-title-btn" type="button">May 2026</button>
               <div id="statsPeriodMenu" class="stats-period-menu" hidden>
+                <button class="btn stats-period-menu-item" type="button" data-period-value="today">Today</button>
+                <button class="btn stats-period-menu-item" type="button" data-period-value="yesterday">Yesterday</button>
                 <button class="btn stats-period-menu-item" type="button" data-period-value="this_month">This month</button>
                 <button class="btn stats-period-menu-item" type="button" data-period-value="last_month">Last month</button>
                 <button class="btn stats-period-menu-item" type="button" data-period-value="this_year">This year</button>
@@ -169,6 +182,8 @@
               <div id="statsPeriodPanel" class="stats-period-panel period-native-select-host">
                 <label class="sr-only" for="statsPeriodSelect">Period</label>
                 <select id="statsPeriodSelect">
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
                   <option value="this_month" selected>This month</option>
                   <option value="last_month">Last month</option>
                   <option value="this_year">This year</option>
@@ -200,6 +215,10 @@
                   <h3 id="chartTitle2">Revenue distribution (EUR)</h3>
                   <canvas id="revenueChart" height="170"></canvas>
                 </article>
+                <article class="chart-card">
+                  <h3 id="temperatureChartTitle">Sensor 1 temperature (°C)</h3>
+                  <canvas id="temperatureChart" height="170"></canvas>
+                </article>
               </div>
               <button id="downloadPurchasesCsvBtn" class="btn stats-export-btn" type="button">Download CSV</button>
               <button id="toggleClimateDetailsBtn" class="btn collapse-toggle" type="button">Climate details</button>
@@ -229,6 +248,7 @@
             </table>
           </div>
         </article>
+        <p id="statusBar" class="status stats-status" aria-live="polite"></p>
       </section>
 
       <section class="grid grid-3 legacy-info" hidden>
@@ -273,6 +293,6 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260806-01"></script>
+  <script src="./app.js?v=20260806-02"></script>
 </body>
 </html>

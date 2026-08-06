@@ -94,6 +94,7 @@ const state = {
   selectedCompanyId: null,
   selectedRole: null,
   currentMachine: null,
+  latestClimatePreview: [],
   lockers: [],
   selectedLockerId: null,
   machineStatus: null,
@@ -124,6 +125,7 @@ const state = {
   ui: {
     activeView: "service",
     lockerCommandsOpen: false,
+    temperatureModalOpen: false,
     lightingCollapsed: true,
     machineCommandsCollapsed: false,
     climateCollapsed: true,
@@ -136,6 +138,7 @@ const state = {
   chartMeta: {
     purchasesByDay: [],
     revenueByDay: [],
+    temperatureByTime: [],
   },
   stats: {
     activeChart: "",
@@ -196,6 +199,10 @@ const el = {
   topCurrentTemperature: document.getElementById("topCurrentTemperature"),
   topHeartbeatDot: document.getElementById("topHeartbeatDot"),
   topHeartbeatText: document.getElementById("topHeartbeatText"),
+  temperatureModal: document.getElementById("temperatureModal"),
+  temperatureMachineText: document.getElementById("temperatureMachineText"),
+  temperatureReadings: document.getElementById("temperatureReadings"),
+  closeTemperatureModalBtn: document.getElementById("closeTemperatureModalBtn"),
   adminStats: document.getElementById("adminStats"),
   adminStatsDetails: document.getElementById("adminStatsDetails"),
   statsPeriodSelect: document.getElementById("statsPeriodSelect"),
@@ -204,6 +211,8 @@ const el = {
   adminClimateStats: document.getElementById("adminClimateStats"),
   purchasesChart: document.getElementById("purchasesChart"),
   revenueChart: document.getElementById("revenueChart"),
+  temperatureChart: document.getElementById("temperatureChart"),
+  temperatureChartTitle: document.getElementById("temperatureChartTitle"),
   chartGrid: document.getElementById("chartGrid"),
   statsPeriodToggleBtn: document.getElementById("statsPeriodToggleBtn"),
   statsPeriodMenu: document.getElementById("statsPeriodMenu"),
@@ -238,6 +247,16 @@ function formatMonthYearLabel(dateObj = new Date()) {
 function updateStatsPeriodButtonLabel() {
   if (!el.statsPeriodToggleBtn) return;
   const mode = String(el.statsPeriodSelect?.value || "this_month");
+  if (mode === "today") {
+    el.statsPeriodToggleBtn.textContent = "Today";
+    syncStatsPeriodMenuActiveState();
+    return;
+  }
+  if (mode === "yesterday") {
+    el.statsPeriodToggleBtn.textContent = "Yesterday";
+    syncStatsPeriodMenuActiveState();
+    return;
+  }
   if (mode === "this_month") {
     el.statsPeriodToggleBtn.textContent = formatMonthYearLabel(new Date());
     syncStatsPeriodMenuActiveState();
@@ -509,6 +528,15 @@ function setChartVisibility(mode = "", options = {}) {
       }
     }
   }
+  if (el.temperatureChart) {
+    const card = el.temperatureChart.closest(".chart-card");
+    if (card) {
+      card.hidden = false;
+      if (mode === "temperature") {
+        targetCard = card;
+      }
+    }
+  }
 
   if (Boolean(options?.scroll) && targetCard) {
     window.requestAnimationFrame(() => {
@@ -588,6 +616,7 @@ function setAuthLayoutVisible(isAuthenticated) {
   if (!isAuthenticated) {
     state.ui.activeView = "service";
     closeLockerCommands();
+    closeTemperatureModal();
     scheduleAuthFieldBlur();
   } else {
     setActiveView(state.ui.activeView);
@@ -597,6 +626,7 @@ function setAuthLayoutVisible(isAuthenticated) {
 function setActiveView(viewName, options = {}) {
   const normalized = ["service", "settings", "stats"].includes(viewName) ? viewName : "service";
   state.ui.activeView = normalized;
+  closeTemperatureModal();
 
   [el.serviceView, el.settingsView, el.statsView].filter(Boolean).forEach((panel) => {
     const isActive = panel.dataset.view === normalized;
@@ -621,6 +651,7 @@ function setActiveView(viewName, options = {}) {
   if (normalized === "stats") {
     window.requestAnimationFrame(() => {
       state.chartRenderSignature = "";
+      state.latestRenderedStatsSignature = "";
       applyAdminStatsView();
     });
   }
@@ -664,6 +695,82 @@ function parseDateMaybe(value) {
   return dt;
 }
 
+function getCurrentMachineCode() {
+  return String(getCurrentMachine()?.machine_code || "").trim().toUpperCase();
+}
+
+function getTemperatureSensorLabel(sensorId) {
+  if (getCurrentMachineCode() === "M0002") {
+    return ({ 1: "Automatic", 2: "E-box", 3: "Outside" })[sensorId] || `Sensor ${sensorId}`;
+  }
+  return `Sensor ${sensorId}`;
+}
+
+function getLatestClimateReading(sensorId) {
+  const matching = (state.latestClimatePreview || [])
+    .filter((entry) => Number(entry.sensor_id) === sensorId)
+    .slice()
+    .sort((a, b) => {
+      const aTime = parseDateMaybe(getClimateLogTime(a))?.getTime() || 0;
+      const bTime = parseDateMaybe(getClimateLogTime(b))?.getTime() || 0;
+      return bTime - aTime;
+    });
+  return matching[0] || null;
+}
+
+function renderTemperatureReadings() {
+  if (!el.temperatureReadings) return;
+  const machineCode = getCurrentMachineCode();
+  if (el.temperatureMachineText) {
+    el.temperatureMachineText.textContent = machineCode
+      ? `${machineCode} · current sensor readings`
+      : "Current sensor readings";
+  }
+
+  el.temperatureReadings.innerHTML = "";
+  [1, 2, 3].forEach((sensorId) => {
+    const reading = getLatestClimateReading(sensorId);
+    const readingTemperature = reading?.temperature;
+    let rawTemperature = readingTemperature === null || readingTemperature === undefined || readingTemperature === ""
+      ? NaN
+      : Number(readingTemperature);
+    if (sensorId === 1 && !Number.isFinite(rawTemperature)) {
+      rawTemperature = Number(state.machineStatus?.current_temperature);
+    }
+
+    const row = document.createElement("div");
+    row.className = "temperature-reading";
+
+    const identity = document.createElement("div");
+    identity.className = "temperature-reading-identity";
+    identity.innerHTML = `<span class="temperature-sensor-number">${sensorId}</span><span class="temperature-sensor-name"></span>`;
+    identity.querySelector(".temperature-sensor-name").textContent = getTemperatureSensorLabel(sensorId);
+
+    const value = document.createElement("strong");
+    value.className = "temperature-reading-value";
+    value.textContent = Number.isFinite(rawTemperature) ? `${rawTemperature.toFixed(1)} °C` : "–";
+
+    row.appendChild(identity);
+    row.appendChild(value);
+    el.temperatureReadings.appendChild(row);
+  });
+}
+
+function openTemperatureModal() {
+  if (!state.selectedMachineId || !el.temperatureModal) return;
+  renderTemperatureReadings();
+  state.ui.temperatureModalOpen = true;
+  el.temperatureModal.hidden = false;
+  window.requestAnimationFrame(() => {
+    el.closeTemperatureModalBtn?.focus({ preventScroll: true });
+  });
+}
+
+function closeTemperatureModal() {
+  state.ui.temperatureModalOpen = false;
+  if (el.temperatureModal) el.temperatureModal.hidden = true;
+}
+
 function updateTopMachineStrip() {
   const status = state.machineStatus;
   const rawTemp = status ? Number(status.current_temperature) : NaN;
@@ -671,7 +778,10 @@ function updateTopMachineStrip() {
     el.topCurrentTemperature.textContent = Number.isFinite(rawTemp)
       ? `${rawTemp.toFixed(1)} °C`
       : "-";
+    el.topCurrentTemperature.disabled = !state.selectedMachineId;
   }
+
+  if (state.ui.temperatureModalOpen) renderTemperatureReadings();
 
   const beatValue = status ? (status.last_heartbeat || status.updated_at) : null;
   const beatDate = parseDateMaybe(beatValue);
@@ -773,7 +883,7 @@ function drawSimpleBars(canvas, labels, values, color, suffix = "") {
   return { bars, width, height };
 }
 
-function drawSimpleLine(canvas, labels, values, color, suffix = "") {
+function drawSimpleLine(canvas, labels, values, color, suffix = "", options = {}) {
   if (!canvas || !canvas.getContext) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -796,8 +906,21 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   const chartW = Math.max(10, width - padLeft - padRight);
   const chartH = Math.max(10, height - padTop - padBottom);
 
-  const nums = values.map((v) => Math.max(0, Number(v) || 0));
-  const maxValue = Math.max(1, ...nums);
+  const allowNegative = Boolean(options.allowNegative);
+  const decimals = Number.isInteger(Number(options.decimals)) ? Number(options.decimals) : 2;
+  const nums = values.map((value) => {
+    const parsed = Number(value);
+    const numeric = Number.isFinite(parsed) ? parsed : 0;
+    return allowNegative ? numeric : Math.max(0, numeric);
+  });
+  let minValue = allowNegative && nums.length ? Math.min(...nums) : 0;
+  let maxValue = nums.length ? Math.max(...nums) : 1;
+  if (!allowNegative) maxValue = Math.max(1, maxValue);
+  if (maxValue === minValue) {
+    minValue -= 1;
+    maxValue += 1;
+  }
+  const valueRange = Math.max(1, maxValue - minValue);
   const count = Math.max(1, nums.length);
   const stepX = count > 1 ? chartW / (count - 1) : 0;
 
@@ -812,11 +935,11 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
   ctx.fillStyle = "#60708d";
   ctx.font = "11px Segoe UI";
   ctx.textAlign = "right";
-  ctx.fillText(String(maxValue.toFixed(2)), padLeft - 6, padTop + 4);
-  ctx.fillText("0", padLeft - 6, padTop + chartH);
+  ctx.fillText(String(maxValue.toFixed(decimals)), padLeft - 6, padTop + 4);
+  ctx.fillText(String(minValue.toFixed(decimals)), padLeft - 6, padTop + chartH);
 
   ctx.textAlign = "left";
-  ctx.fillText("Revenue", 8, 14);
+  ctx.fillText(String(options.yLabel || "Revenue"), 8, 14);
 
   if (!nums.length) {
     ctx.fillStyle = "#54637e";
@@ -828,7 +951,7 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
 
   const points = nums.map((v, idx) => {
     const x = padLeft + idx * stepX;
-    const y = padTop + chartH - (v / maxValue) * (chartH - 8);
+    const y = padTop + chartH - ((v - minValue) / valueRange) * (chartH - 8);
     return { x, y, value: v, index: idx };
   });
 
@@ -976,7 +1099,8 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
     chosenPeakIndexes.push(globalMaxIdx);
   }
 
-  const formatMoneyLabel = (value) => `${Number(value || 0).toFixed(2)}€`;
+  const pointSuffix = suffix || "€";
+  const formatPointLabel = (value) => `${Number(value || 0).toFixed(decimals)}${pointSuffix}`;
   ctx.font = isNarrowChart ? "10px Segoe UI" : "11px Segoe UI";
   ctx.textAlign = "center";
   chosenPeakIndexes
@@ -984,7 +1108,7 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "") {
     .sort((a, b) => a - b)
     .forEach((idx) => {
       const p = points[idx];
-      const label = formatMoneyLabel(p.value);
+      const label = formatPointLabel(p.value);
       const y = Math.max(padTop + 10, p.y - 10);
       ctx.lineWidth = 3;
       ctx.strokeStyle = "rgba(255,255,255,0.96)";
@@ -1046,10 +1170,14 @@ function buildBucketKey(dt, bucketType = "day") {
 
 function bucketByDate(logs, valueSelector, options = {}) {
   const mode = String(options.mode || "auto");
+  const aggregation = String(options.aggregation || "sum");
+  const dateSelector = typeof options.dateSelector === "function"
+    ? options.dateSelector
+    : (item) => item.purchased_at || item.created_at || item.timestamp;
   const byDay = new Map();
   const withDate = [];
   logs.forEach((item) => {
-    const dt = parseDateMaybe(item.purchased_at || item.created_at || item.timestamp);
+    const dt = parseDateMaybe(dateSelector(item));
     if (!dt) return;
     withDate.push({ item, dt });
   });
@@ -1074,10 +1202,26 @@ function bucketByDate(logs, valueSelector, options = {}) {
 
   withDate.forEach(({ item, dt }) => {
     const key = buildBucketKey(dt, bucketType);
-    byDay.set(key, (byDay.get(key) || 0) + Number(valueSelector(item) || 0));
+    const value = Number(valueSelector(item));
+    const numericValue = Number.isFinite(value) ? value : 0;
+    if (aggregation === "average") {
+      const current = byDay.get(key) || { sum: 0, count: 0 };
+      current.sum += numericValue;
+      current.count += 1;
+      byDay.set(key, current);
+    } else {
+      byDay.set(key, (byDay.get(key) || 0) + numericValue);
+    }
   });
 
-  const entries = Array.from(byDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const entries = Array.from(byDay.entries())
+    .map(([key, value]) => {
+      if (aggregation === "average") {
+        return [key, value.count ? value.sum / value.count : 0];
+      }
+      return [key, value];
+    })
+    .sort((a, b) => a[0].localeCompare(b[0]));
   const tail = mode === "line" ? entries.slice(-24) : entries.slice(-10);
 
   const labels = tail.map(([k]) => {
@@ -1201,7 +1345,12 @@ function dateFilterForPeriod(period) {
 
   let start = null;
   let end = now;
-  if (period === "last_7_days") {
+  if (period === "today") {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  } else if (period === "yesterday") {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+  } else if (period === "last_7_days") {
     start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   } else if (period === "last_month") {
     start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -1464,8 +1613,32 @@ function applyAdminStatsView() {
   const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0), { mode: "line" });
   const revenueMeta = drawSimpleLine(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
 
+  const temperatureSeries = bucketByDate(
+    climate.filter((entry) => Number.isFinite(Number(entry.temperature))),
+    (entry) => Number(entry.temperature),
+    {
+      mode: "line",
+      aggregation: "average",
+      dateSelector: getClimateLogTime,
+    }
+  );
+  if (el.temperatureChartTitle) {
+    el.temperatureChartTitle.textContent = getCurrentMachineCode() === "M0002"
+      ? "Automatic temperature (°C)"
+      : "Sensor 1 temperature (°C)";
+  }
+  drawSimpleLine(
+    el.temperatureChart,
+    temperatureSeries.labels,
+    temperatureSeries.values,
+    "#e07a35",
+    "°C",
+    { yLabel: "Temperature", decimals: 1, allowNegative: true }
+  );
+
   state.chartMeta.purchasesByDay = purchasesSeries.keys;
   state.chartMeta.revenueByDay = revenueSeries.keys;
+  state.chartMeta.temperatureByTime = temperatureSeries.keys;
 
   bindCanvasPointClicks(
     el.purchasesChart,
@@ -2732,8 +2905,13 @@ function resetDashboard() {
   el.lockerGrid.innerHTML = "";
   state.lockers = [];
   state.currentMachine = null;
+  state.latestClimatePreview = [];
   state.selectedLockerId = null;
   state.machineStatus = null;
+  state.latestStatsRaw.purchases = [];
+  state.latestStatsRaw.climate = [];
+  state.chartRenderSignature = "";
+  state.latestRenderedStatsSignature = "";
   state.pendingLockerPriceById.clear();
   state.pendingLockerColorById.clear();
   if (state.dbRefreshDebounceTimerId) {
@@ -2742,6 +2920,7 @@ function resetDashboard() {
   }
   clearPendingControls();
   closeLockerCommands();
+  closeTemperatureModal();
   setSelectedLockerText();
   syncSelectedLockerFormFields();
   syncControlModesFromStatusAndLocker();
@@ -2755,7 +2934,7 @@ function setSelectedLockerText() {
     el.selectedLockerText.textContent = "No locker selected";
     return;
   }
-  el.selectedLockerText.textContent = `Locker ${locker.locker_number} selected (id=${locker.locker_id})`;
+  el.selectedLockerText.textContent = `Locker ${locker.locker_number}`;
 }
 
 function syncSelectedLockerFormFields() {
@@ -2810,9 +2989,11 @@ function createLockerButton(locker, placement = null) {
   const button = document.createElement("button");
   const placementClass = placement ? ` locker-size-${placement.size.toLowerCase()}` : "";
   button.type = "button";
-  button.className = `locker-btn ${lockerColorClass(locker)}${placementClass}${locker.locker_id === state.selectedLockerId ? " active" : ""}${lockerIsOpened(locker) ? " opened-text" : ""}`;
+  button.className = `locker-btn ${lockerColorClass(locker)}${placementClass}${lockerIsOpened(locker) ? " opened-text" : ""}`;
   button.setAttribute("aria-label", `Locker ${locker.locker_number}, ${lockerStateLabel(locker).toLowerCase()}`);
-  button.innerHTML = `<span>${placement ? "" : "L"}${locker.locker_number}</span><small>${lockerStateLabel(locker)}</small>`;
+  button.innerHTML = placement
+    ? `<span>${locker.locker_number}</span>`
+    : `<span>L${locker.locker_number}</span><small>${lockerStateLabel(locker)}</small>`;
   button.addEventListener("click", () => {
     state.selectedLockerId = locker.locker_id;
     setSelectedLockerText();
@@ -3421,17 +3602,19 @@ async function loadDashboard(options = {}) {
   }
 
   const machineId = state.selectedMachineId;
-  const [user, machine, status, lockers, activityLogs, purchaseLogs] = await Promise.all([
+  const [user, machine, status, lockers, activityLogs, purchaseLogs, climatePreview] = await Promise.all([
     api(`/users/${state.selectedUserId}`),
     api(`/machines/${machineId}`),
     api(`/machine_status/${machineId}`).catch(() => null),
     api(`/lockers?machine_id=${machineId}`),
     api(`/activity_logs?machine_id=${machineId}&limit=20`).catch(() => []),
     api(`/purchase_logs?machine_id=${machineId}&limit=500`).catch(() => []),
+    api(`/climate_logs?machine_id=${machineId}&limit=60`).catch(() => []),
   ]);
 
   state.machineStatus = status;
   state.currentMachine = machine;
+  state.latestClimatePreview = Array.isArray(climatePreview) ? climatePreview : [];
   state.lockers = lockers;
 
   state.lockers.forEach((locker) => {
@@ -3519,6 +3702,7 @@ async function loadAdminStats(machineId) {
 
   state.latestStatsRaw.purchases = purchases;
   state.latestStatsRaw.climate = climate;
+  state.latestClimatePreview = Array.isArray(climate) ? climate.slice(0, 60) : state.latestClimatePreview;
   state.chartRenderSignature = "";
   state.latestRenderedStatsSignature = "";
 
@@ -4091,9 +4275,23 @@ function wireEvents() {
   if (el.lockerSheetBackdrop) {
     el.lockerSheetBackdrop.addEventListener("click", closeLockerCommands);
   }
+  if (el.topCurrentTemperature) {
+    el.topCurrentTemperature.addEventListener("click", openTemperatureModal);
+  }
+  if (el.closeTemperatureModalBtn) {
+    el.closeTemperatureModalBtn.addEventListener("click", closeTemperatureModal);
+  }
+  if (el.temperatureModal) {
+    el.temperatureModal.addEventListener("click", (event) => {
+      if (event.target === el.temperatureModal) closeTemperatureModal();
+    });
+  }
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && state.ui.lockerCommandsOpen) {
       closeLockerCommands();
+    }
+    if (event.key === "Escape" && state.ui.temperatureModalOpen) {
+      closeTemperatureModal();
     }
   });
 

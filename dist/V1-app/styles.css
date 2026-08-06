@@ -1884,3 +1884,274 @@ body.app-authenticated {
     font-size: 12px;
   }
 }
+
+/* Temperature details */
+.machine-strip-temp {
+  min-height: 0;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.machine-strip-temp:not(:disabled):hover {
+  background: #eef3fb;
+}
+
+.machine-strip-temp:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.temperature-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1700;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgba(14, 22, 39, 0.44);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.temperature-dialog {
+  width: min(420px, 100%);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(12, 24, 48, 0.28);
+}
+
+.temperature-readings {
+  display: grid;
+  gap: 8px;
+}
+
+.temperature-reading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 66px;
+  padding: 10px 12px;
+  border: 1px solid #e4e8ef;
+  border-radius: 12px;
+  background: #f8f9fc;
+}
+
+.temperature-reading-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.temperature-sensor-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 999px;
+  background: #e8f0ff;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.temperature-sensor-name {
+  color: #2a3f63;
+  font-weight: 600;
+}
+
+.temperature-reading-value {
+  color: var(--text);
+  font-size: 21px;
+  white-space: nowrap;
+}
+
+/* Locker cabinet proportions: L=y×y, M=x×y, S=x×x. */
+.locker-layout-row .locker-btn {
+  display: block;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 1;
+}
+
+.locker-layout-row .locker-size-l {
+  flex: 2.35 1 0;
+  aspect-ratio: 1;
+}
+
+.locker-layout-row .locker-size-m {
+  flex: 1 1 0;
+  aspect-ratio: 1 / 2.35;
+}
+
+.locker-layout-row .locker-size-s {
+  flex: 1 1 0;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.locker-layout-row .locker-btn > span {
+  position: absolute;
+  top: clamp(6px, 1.2vw, 14px);
+  right: clamp(7px, 1.4vw, 16px);
+  font-size: clamp(19px, 3vw, 34px);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.locker-layout-row .locker-btn > small {
+  display: none;
+}
+
+.stats-status {
+  max-height: none;
+  min-height: 22px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: visible;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .machine-strip-temp {
+    width: auto;
+    height: 40px;
+    min-height: 40px;
+    padding: 5px 6px;
+    font-size: 15px;
+  }
+
+  .temperature-modal {
+    align-items: end;
+    padding: 8px 8px calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .temperature-dialog {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .temperature-reading {
+    min-height: 58px;
+    padding: 8px 10px;
+  }
+
+  .temperature-reading-value {
+    font-size: 19px;
+  }
+
+  .locker-layout-row .locker-btn {
+    height: auto;
+  }
+
+  .locker-layout-row .locker-btn > span {
+    top: 6px;
+    right: 7px;
+    font-size: clamp(18px, 5vw, 24px);
+  }
+
+  .settings-view {
+    display: block;
+    overflow: hidden;
+  }
+
+  .settings-card {
+    height: 100%;
+    min-height: 0;
+    padding: 9px;
+    overflow: hidden;
+  }
+
+  .settings-card > h2,
+  .settings-card #machineCommandsToggleBtn {
+    display: none;
+  }
+
+  .settings-card #machineCommandsBlock {
+    height: 100%;
+    margin: 0;
+    padding: 8px;
+    align-content: start;
+  }
+
+  .settings-card #machineCommandsContent {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    align-content: start;
+  }
+
+  .settings-card .form-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px 7px;
+    margin: 0;
+  }
+
+  .settings-card .form-row > label {
+    grid-column: 1 / -1;
+  }
+
+  .settings-card input,
+  .settings-card button,
+  .settings-card .btn,
+  .settings-card .state-btn {
+    min-height: 40px;
+    height: 40px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .settings-card .form-row .btn {
+    width: auto;
+  }
+
+  .settings-card .mode-block {
+    gap: 5px;
+    margin: 0;
+  }
+
+  .settings-card .fan-button-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .settings-card .headlight-button-row {
+    gap: 6px;
+  }
+
+  .settings-card label {
+    font-size: 12px;
+  }
+
+  .stats-status {
+    max-height: none;
+    margin: 0;
+    font-size: 12px;
+    line-height: 17px;
+    text-align: left;
+  }
+}
+
+@media (max-height: 650px) and (max-width: 768px) {
+  .settings-card input,
+  .settings-card button,
+  .settings-card .btn,
+  .settings-card .state-btn {
+    min-height: 34px;
+    height: 34px;
+    padding-block: 4px;
+    font-size: 12px;
+  }
+
+  .settings-card #machineCommandsContent {
+    gap: 5px;
+  }
+}

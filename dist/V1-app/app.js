@@ -99,6 +99,7 @@ const state = {
   selectedRole: null,
   currentMachine: null,
   latestClimatePreview: [],
+  latestPurchasePreview: [],
   lockers: [],
   selectedLockerId: null,
   machineStatus: null,
@@ -655,6 +656,12 @@ function setActiveView(viewName, options = {}) {
 
   if (normalized !== "service") {
     closeLockerCommands();
+  }
+
+  if (normalized === "service") {
+    window.requestAnimationFrame(() => {
+      syncPlacedLockerHeights();
+    });
   }
 
   if (el.appViews) {
@@ -1699,7 +1706,7 @@ function applyAdminStatsView() {
   const climateForPeriod = (state.latestStatsRaw.climate || []).filter((x) => inPeriod(getClimateLogTime(x)));
   const climate = climateForPeriod.filter((x) => Number(x.sensor_id) === selectedSensorId);
 
-  renderPurchaseLogs(purchases);
+  renderPurchaseLogs(state.latestPurchasePreview);
 
   const signature = JSON.stringify({
     period,
@@ -3100,6 +3107,7 @@ function resetDashboard() {
   state.lockers = [];
   state.currentMachine = null;
   state.latestClimatePreview = [];
+  state.latestPurchasePreview = [];
   state.selectedLockerId = null;
   state.machineStatus = null;
   state.latestStatsRaw.purchases = [];
@@ -3277,7 +3285,6 @@ function syncPlacedLockerHeights() {
       const largeLocker = row.querySelector(".locker-size-l");
       const largeHeight = largeLocker?.getBoundingClientRect().height || referenceLargeHeight;
       if (largeHeight <= 0) {
-        row.style.removeProperty("--locker-large-height");
         return;
       }
       row.style.setProperty("--locker-large-height", `${largeHeight}px`);
@@ -3834,6 +3841,7 @@ async function loadDashboard(options = {}) {
   state.machineStatus = status;
   state.currentMachine = machine;
   state.latestClimatePreview = Array.isArray(climatePreview) ? climatePreview : [];
+  state.latestPurchasePreview = Array.isArray(purchaseLogs) ? purchaseLogs : [];
   state.lockers = lockers;
 
   state.lockers.forEach((locker) => {
@@ -3889,7 +3897,7 @@ async function loadDashboard(options = {}) {
 
   const _unusedUser = user;
   renderActivityLogs(activityLogs || []);
-  renderPurchaseLogs(purchaseLogs || []);
+  renderPurchaseLogs(state.latestPurchasePreview);
   renderLockers();
   syncControlModesFromStatusAndLocker();
   updateTopMachineStrip();

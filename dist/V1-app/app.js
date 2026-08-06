@@ -356,6 +356,27 @@ function closeStatsPeriodPanel() {
   setStatsPeriodMenuVisible(false);
 }
 
+function resetStatsViewForNavigation() {
+  state.ui.climateCollapsed = true;
+  syncCollapsibleUi();
+  closeStatsPeriodPanel();
+
+  const rangePicker = getStatsRangePickerInstance();
+  if (rangePicker?.isOpen) {
+    rangePicker.close();
+  }
+
+  const scrollStatsToTop = () => {
+    if (el.statsView) el.statsView.scrollTop = 0;
+    if (el.appViews) el.appViews.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+
+  scrollStatsToTop();
+  window.requestAnimationFrame(scrollStatsToTop);
+}
+
 function formatDateForInput(dateObj) {
   if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
@@ -4389,7 +4410,11 @@ function wireEvents() {
     onUserSelected().catch((e) => setStatus(`Failed to load user machines: ${e.message}`));
   });
 
-  el.machineSelect.addEventListener("change", onMachineSelected);
+  el.machineSelect.addEventListener("change", () => {
+    onMachineSelected();
+    if (!state.selectedMachineId) return;
+    loadDashboard().catch((e) => setStatus(`Failed to load selected machine: ${e.message}`));
+  });
   el.loadBtn.addEventListener("click", () => loadDashboard().catch((e) => setStatus(`Failed to load dashboard: ${e.message}`)));
   if (el.clearBtn) {
     el.clearBtn.addEventListener("click", clearAll);
@@ -4588,6 +4613,9 @@ function wireEvents() {
     button.addEventListener("click", () => {
       const targetView = button.dataset.viewTarget || "service";
       setActiveView(targetView);
+      if (targetView === "stats") {
+        resetStatsViewForNavigation();
+      }
       if (!state.auth.isAuthenticated || !state.selectedUserId || !state.selectedMachineId) return;
       if (!state.ui.navigationRefreshPromise) {
         state.ui.navigationRefreshPromise = loadDashboard()
@@ -4595,6 +4623,9 @@ function wireEvents() {
           .finally(() => {
             state.ui.navigationRefreshPromise = null;
             setActiveView(state.ui.activeView);
+            if (state.ui.activeView === "stats") {
+              resetStatsViewForNavigation();
+            }
           });
       }
     });

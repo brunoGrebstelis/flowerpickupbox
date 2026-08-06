@@ -1592,6 +1592,18 @@ body.app-authenticated {
   text-align: left;
 }
 
+.locker-command-sheet #selectedLockerText {
+  margin: 0;
+  font-size: clamp(26px, 5vw, 36px);
+  line-height: 1.1;
+}
+
+#lightingModesBlock {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .sheet-close-btn {
   width: 42px;
   min-width: 42px;
@@ -1870,6 +1882,19 @@ body.app-authenticated {
   .locker-command-sheet .form-row {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .locker-command-sheet .price-command-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .locker-command-sheet .price-command-row > label {
+    grid-column: 1 / -1;
+  }
+
+  .locker-command-sheet .price-command-row #setPriceBtn {
+    width: auto;
+    min-width: 112px;
   }
 
   .locker-command-sheet input,
@@ -2223,4 +2248,11 @@ body.app-authenticated {
   .settings-card #machineCommandsContent {
     gap: 5px;
   }
+}
+
+input:not([type="color"]),
+select,
+.dashboard-context .machine-field select {
+  text-align: center;
+  text-align-last: center;
 }

@@ -132,6 +132,7 @@ const state = {
     lockerCommandsOpen: false,
     temperatureModalOpen: false,
     lockerLayoutFrameId: null,
+    navigationRefreshPromise: null,
     lightingCollapsed: true,
     machineCommandsCollapsed: false,
     climateCollapsed: true,
@@ -3136,7 +3137,7 @@ function resetDashboard() {
 function setSelectedLockerText() {
   const locker = getSelectedLocker();
   if (!locker) {
-    el.selectedLockerText.textContent = "No locker selected";
+    el.selectedLockerText.textContent = "Locker";
     return;
   }
   el.selectedLockerText.textContent = `Locker ${locker.locker_number}`;
@@ -4585,7 +4586,17 @@ function wireEvents() {
 
   [el.quickNavServiceBtn, el.quickNavSettingsBtn, el.quickNavStatsBtn].filter(Boolean).forEach((button) => {
     button.addEventListener("click", () => {
-      setActiveView(button.dataset.viewTarget || "service");
+      const targetView = button.dataset.viewTarget || "service";
+      setActiveView(targetView);
+      if (!state.auth.isAuthenticated || !state.selectedUserId || !state.selectedMachineId) return;
+      if (!state.ui.navigationRefreshPromise) {
+        state.ui.navigationRefreshPromise = loadDashboard()
+          .catch((error) => setStatus(`Failed to refresh dashboard: ${error.message || error}`))
+          .finally(() => {
+            state.ui.navigationRefreshPromise = null;
+            setActiveView(state.ui.activeView);
+          });
+      }
     });
   });
 

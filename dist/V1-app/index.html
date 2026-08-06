@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260806-08" />
+  <link rel="stylesheet" href="./styles.css?v=20260806-09" />
 </head>
 <body>
   <main class="app-shell">
@@ -92,16 +92,15 @@
         </article>
 
         <div id="lockerSheetBackdrop" class="locker-sheet-backdrop" hidden></div>
-        <article id="lockerCommandsSheet" class="card locker-command-sheet" role="dialog" aria-modal="true" aria-labelledby="lockerCommandsTitle" hidden>
+        <article id="lockerCommandsSheet" class="card locker-command-sheet" role="dialog" aria-modal="true" aria-labelledby="selectedLockerText" hidden>
           <div class="sheet-handle" aria-hidden="true"></div>
           <div class="sheet-heading">
             <div>
-              <h2 id="lockerCommandsTitle">Locker Commands</h2>
-              <p id="selectedLockerText" class="subtle">No locker selected</p>
+              <h2 id="selectedLockerText">Locker</h2>
             </div>
             <button id="closeLockerCommandsBtn" class="sheet-close-btn" type="button" aria-label="Close locker commands">&times;</button>
           </div>
-          <div class="form-row">
+          <div class="form-row price-command-row">
             <label for="lockerPrice">Price</label>
             <input id="lockerPrice" type="number" inputmode="decimal" step="0.01" min="0" max="9999" placeholder="e.g. 12.50" />
             <button id="setPriceBtn" class="btn" type="button">Set price</button>
@@ -296,6 +295,6 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260806-08"></script>
+  <script src="./app.js?v=20260806-09"></script>
 </body>
 </html>

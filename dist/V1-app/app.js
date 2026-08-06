@@ -335,6 +335,19 @@ function setRgbFieldsFromHex(hex) {
   el.colorB.value = String(b);
 }
 
+function enforceNumberInputRange(input, min, max) {
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const value = input.valueAsNumber;
+    if (!Number.isFinite(value)) return;
+    if (value > max) {
+      input.value = String(max);
+    } else if (value < min) {
+      input.value = String(min);
+    }
+  });
+}
+
 function openNativeColorPicker(inputEl) {
   if (!inputEl) return;
   try {
@@ -4380,6 +4393,11 @@ function wireEvents() {
         input.select();
       }
     });
+  });
+
+  enforceNumberInputRange(el.lockerPrice, 0, 9999);
+  [el.colorR, el.colorG, el.colorB].forEach((input) => {
+    enforceNumberInputRange(input, 0, 255);
   });
 
   el.lockerPrice.addEventListener("pointerdown", () => {

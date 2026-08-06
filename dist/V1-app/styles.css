@@ -1572,14 +1572,6 @@ body.app-authenticated {
   box-shadow: 0 20px 60px rgba(12, 24, 48, 0.28);
 }
 
-.sheet-handle {
-  width: 42px;
-  height: 4px;
-  margin: -4px auto 10px;
-  border-radius: 99px;
-  background: #cbd4e3;
-}
-
 .sheet-heading {
   display: flex;
   justify-content: space-between;

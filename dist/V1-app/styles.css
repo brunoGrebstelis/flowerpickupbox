@@ -1796,6 +1796,8 @@ body.app-authenticated {
   }
 
   .locker-layout-rows {
+    grid-template-rows: repeat(var(--locker-row-count, 2), auto);
+    align-content: center;
     gap: 7px;
   }
 
@@ -1998,7 +2000,7 @@ body.app-authenticated {
 .locker-layout-row .locker-btn > span {
   position: absolute;
   top: clamp(6px, 1.2vw, 14px);
-  right: clamp(7px, 1.4vw, 16px);
+  left: clamp(7px, 1.4vw, 16px);
   font-size: clamp(19px, 3vw, 34px);
   font-weight: 800;
   line-height: 1;
@@ -2006,6 +2008,22 @@ body.app-authenticated {
 
 .locker-layout-row .locker-btn > small {
   display: none;
+}
+
+.locker-command-sheet .form-row .actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.locker-command-sheet .form-row .actions #colorPicker {
+  grid-column: 1 / -1;
+}
+
+.locker-command-sheet .form-row .actions #setColorBtn,
+.locker-command-sheet .form-row .actions #setColorAllBtn {
+  width: 100%;
 }
 
 .stats-status {
@@ -2049,11 +2067,12 @@ body.app-authenticated {
 
   .locker-layout-row .locker-btn {
     height: auto;
+    max-height: none;
   }
 
   .locker-layout-row .locker-btn > span {
     top: 6px;
-    right: 7px;
+    left: 7px;
     font-size: clamp(18px, 5vw, 24px);
   }
 

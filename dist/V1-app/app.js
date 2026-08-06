@@ -663,6 +663,8 @@ function setActiveView(viewName, options = {}) {
 
 function openLockerCommands() {
   if (!getSelectedLocker() || !el.lockerCommandsSheet) return;
+  state.ui.lightingCollapsed = true;
+  syncCollapsibleUi();
   state.ui.lockerCommandsOpen = true;
   el.lockerCommandsSheet.hidden = false;
   if (el.lockerSheetBackdrop) el.lockerSheetBackdrop.hidden = false;
@@ -701,7 +703,8 @@ function getCurrentMachineCode() {
 
 function getTemperatureSensorLabel(sensorId) {
   if (getCurrentMachineCode() === "M0002") {
-    return ({ 1: "Automatic", 2: "E-box", 3: "Outside" })[sensorId] || `Sensor ${sensorId}`;
+    const meaning = ({ 1: "Automatic", 2: "E-box", 3: "Outside" })[sensorId];
+    return meaning ? `Sensor ${sensorId} — ${meaning}` : `Sensor ${sensorId}`;
   }
   return `Sensor ${sensorId}`;
 }

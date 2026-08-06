@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260806-03" />
+  <link rel="stylesheet" href="./styles.css?v=20260806-04" />
 </head>
 <body>
   <main class="app-shell">
@@ -215,14 +215,25 @@
                   <h3 id="chartTitle2">Revenue distribution (EUR)</h3>
                   <canvas id="revenueChart" height="170"></canvas>
                 </article>
-                <article class="chart-card">
-                  <h3 id="temperatureChartTitle">Sensor 1 temperature (°C)</h3>
-                  <canvas id="temperatureChart" height="170"></canvas>
-                </article>
               </div>
               <button id="downloadPurchasesCsvBtn" class="btn stats-export-btn" type="button">Download CSV</button>
               <button id="toggleClimateDetailsBtn" class="btn collapse-toggle" type="button">Climate details</button>
               <div id="climateDetailsContent" class="collapse-content" hidden>
+                <div id="climateSensorButtons" class="climate-sensor-buttons" aria-label="Climate sensor">
+                  <button class="btn climate-sensor-btn active" type="button" data-climate-sensor="1">Sensor 1</button>
+                  <button class="btn climate-sensor-btn" type="button" data-climate-sensor="2">Sensor 2</button>
+                  <button class="btn climate-sensor-btn" type="button" data-climate-sensor="3">Sensor 3</button>
+                </div>
+                <div class="climate-chart-grid">
+                  <article class="chart-card">
+                    <h3 id="temperatureChartTitle">Sensor 1 temperature (°C)</h3>
+                    <canvas id="temperatureChart" height="170"></canvas>
+                  </article>
+                  <article class="chart-card">
+                    <h3 id="humidityChartTitle">Sensor 1 humidity (%)</h3>
+                    <canvas id="humidityChart" height="170"></canvas>
+                  </article>
+                </div>
                 <div id="adminClimateStats" class="info-list"></div>
                 <button id="downloadClimateCsvBtn" class="btn stats-export-btn" type="button">Download climate CSV</button>
               </div>
@@ -293,6 +304,6 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260806-03"></script>
+  <script src="./app.js?v=20260806-04"></script>
 </body>
 </html>

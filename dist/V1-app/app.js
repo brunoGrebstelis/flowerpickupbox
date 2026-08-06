@@ -126,6 +126,7 @@ const state = {
     activeView: "service",
     lockerCommandsOpen: false,
     temperatureModalOpen: false,
+    lockerLayoutFrameId: null,
     lightingCollapsed: true,
     machineCommandsCollapsed: false,
     climateCollapsed: true,
@@ -139,11 +140,14 @@ const state = {
     purchasesByDay: [],
     revenueByDay: [],
     temperatureByTime: [],
+    humidityByTime: [],
   },
   stats: {
     activeChart: "",
     customFrom: "",
     customTo: "",
+    climateSensorId: 1,
+    climateRequestSequence: 0,
   },
   colorPickerModalOpen: false,
   chartRenderSignature: "",
@@ -208,11 +212,14 @@ const el = {
   statsPeriodSelect: document.getElementById("statsPeriodSelect"),
   toggleClimateDetailsBtn: document.getElementById("toggleClimateDetailsBtn"),
   climateDetailsContent: document.getElementById("climateDetailsContent"),
+  climateSensorButtons: document.getElementById("climateSensorButtons"),
   adminClimateStats: document.getElementById("adminClimateStats"),
   purchasesChart: document.getElementById("purchasesChart"),
   revenueChart: document.getElementById("revenueChart"),
   temperatureChart: document.getElementById("temperatureChart"),
   temperatureChartTitle: document.getElementById("temperatureChartTitle"),
+  humidityChart: document.getElementById("humidityChart"),
+  humidityChartTitle: document.getElementById("humidityChartTitle"),
   chartGrid: document.getElementById("chartGrid"),
   statsPeriodToggleBtn: document.getElementById("statsPeriodToggleBtn"),
   statsPeriodMenu: document.getElementById("statsPeriodMenu"),
@@ -488,14 +495,14 @@ function initStatsRangePicker() {
       updateStatsRangeInputsFromDates(selectedDates);
       updateStatsPeriodButtonLabel();
       if (selectedDates.length === 2) {
-        applyAdminStatsView();
+        refreshStatsForSelectedPeriod();
       }
     },
     onClose(selectedDates) {
       if (selectedDates.length === 0) {
         updateStatsRangeInputsFromDates([]);
         updateStatsPeriodButtonLabel();
-        applyAdminStatsView();
+        refreshStatsForSelectedPeriod();
       }
     },
   });
@@ -707,6 +714,18 @@ function getTemperatureSensorLabel(sensorId) {
     return meaning ? `Sensor ${sensorId} — ${meaning}` : `Sensor ${sensorId}`;
   }
   return `Sensor ${sensorId}`;
+}
+
+function syncClimateSensorButtons() {
+  if (!el.climateSensorButtons) return;
+  const selectedSensorId = Number(state.stats.climateSensorId) || 1;
+  el.climateSensorButtons.querySelectorAll("[data-climate-sensor]").forEach((button) => {
+    const sensorId = Number(button.dataset.climateSensor);
+    button.textContent = getTemperatureSensorLabel(sensorId);
+    const isActive = sensorId === selectedSensorId;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
 }
 
 function getLatestClimateReading(sensorId) {
@@ -1225,7 +1244,9 @@ function bucketByDate(logs, valueSelector, options = {}) {
       return [key, value];
     })
     .sort((a, b) => a[0].localeCompare(b[0]));
-  const tail = mode === "line" ? entries.slice(-24) : entries.slice(-10);
+  const tail = options.includeAllBuckets
+    ? entries
+    : (mode === "line" ? entries.slice(-24) : entries.slice(-10));
 
   const labels = tail.map(([k]) => {
     if (bucketType === "hour") return k.slice(11, 16);
@@ -1342,9 +1363,9 @@ function aggregateLockerRevenue(purchases) {
   };
 }
 
-function dateFilterForPeriod(period) {
+function getStatsPeriodBounds(period) {
   const now = new Date();
-  if (period === "all_time") return () => true;
+  if (period === "all_time") return { start: null, end: null };
 
   let start = null;
   let end = now;
@@ -1365,24 +1386,43 @@ function dateFilterForPeriod(period) {
   } else if (period === "custom") {
     const fromRaw = String(el.statsCustomFrom?.value || "").trim();
     const toRaw = String(el.statsCustomTo?.value || "").trim();
-    const fromDate = fromRaw ? new Date(`${fromRaw}T00:00:00`) : null;
-    const toDate = toRaw ? new Date(`${toRaw}T23:59:59`) : null;
-    return (value) => {
-      const dt = parseDateMaybe(value);
-      if (!dt) return false;
-      if (fromDate && dt < fromDate) return false;
-      if (toDate && dt > toDate) return false;
-      return true;
-    };
+    start = fromRaw ? new Date(`${fromRaw}T00:00:00`) : null;
+    end = toRaw ? new Date(`${toRaw}T23:59:59.999`) : null;
   } else {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
   }
 
+  return { start, end };
+}
+
+function dateFilterForPeriod(period) {
+  const { start, end } = getStatsPeriodBounds(period);
+
   return (value) => {
     const dt = parseDateMaybe(value);
     if (!dt) return false;
-    return dt >= start && dt <= end;
+    if (start && dt < start) return false;
+    if (end && dt > end) return false;
+    return true;
   };
+}
+
+function formatClimateApiBoundary(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  return value.toISOString().replace(/Z$/, "");
+}
+
+function buildClimateLogsPath(machineId) {
+  const period = String(el.statsPeriodSelect?.value || "this_month");
+  const { start, end } = getStatsPeriodBounds(period);
+  const params = new URLSearchParams({
+    machine_id: String(machineId),
+    all: "true",
+    limit: "100000",
+  });
+  if (start) params.set("from", formatClimateApiBoundary(start));
+  if (end) params.set("to", formatClimateApiBoundary(end));
+  return `/climate_logs?${params.toString()}`;
 }
 
 function csvEscape(value) {
@@ -1474,8 +1514,9 @@ function downloadClimateCsv() {
 
   const period = String(el.statsPeriodSelect?.value || "this_month");
   const inPeriod = dateFilterForPeriod(period);
+  const selectedSensorId = Number(state.stats.climateSensorId) || 1;
   const climate = (state.latestStatsRaw.climate || [])
-    .filter((x) => Number(x.sensor_id) === 1)
+    .filter((x) => Number(x.sensor_id) === selectedSensorId)
     .filter((x) => inPeriod(getClimateLogTime(x)))
     .slice()
     .sort((a, b) => {
@@ -1485,7 +1526,7 @@ function downloadClimateCsv() {
     });
 
   if (!climate.length) {
-    setStatus("No climate logs found for selected period (sensor 1).");
+    setStatus(`No climate logs found for selected period (sensor ${selectedSensorId}).`);
     return;
   }
 
@@ -1518,7 +1559,7 @@ function downloadClimateCsv() {
   const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   const periodSafe = period.replace(/[^a-z0-9_-]/gi, "_");
   const machineSafe = state.selectedMachineId ? `machine_${state.selectedMachineId}` : "machine";
-  const filename = `climate_sensor1_${machineSafe}_${periodSafe}_${stamp}.csv`;
+  const filename = `climate_sensor${selectedSensorId}_${machineSafe}_${periodSafe}_${stamp}.csv`;
 
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -1528,7 +1569,7 @@ function downloadClimateCsv() {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 
-  setStatus(`Downloaded CSV with ${climate.length} climate logs (sensor 1).`, true);
+  setStatus(`Downloaded CSV with ${climate.length} climate logs (sensor ${selectedSensorId}).`, true);
 }
 
 function applyAdminStatsView() {
@@ -1536,14 +1577,16 @@ function applyAdminStatsView() {
 
   const period = (el.statsPeriodSelect?.value || "this_month");
   const inPeriod = dateFilterForPeriod(period);
+  const selectedSensorId = Number(state.stats.climateSensorId) || 1;
+  syncClimateSensorButtons();
 
   const purchases = (state.latestStatsRaw.purchases || []).filter((x) => inPeriod(x.purchased_at || x.created_at));
-  const climate = (state.latestStatsRaw.climate || [])
-    .filter((x) => Number(x.sensor_id) === 1)
-    .filter((x) => inPeriod(getClimateLogTime(x)));
+  const climateForPeriod = (state.latestStatsRaw.climate || []).filter((x) => inPeriod(getClimateLogTime(x)));
+  const climate = climateForPeriod.filter((x) => Number(x.sensor_id) === selectedSensorId);
 
   const signature = JSON.stringify({
     period,
+    selectedSensorId,
     purchasesLen: purchases.length,
     climateLen: climate.length,
     purchasesTail: purchases.slice(-30).map((x) => [x.purchase_log_id || x.id || null, x.purchased_at || x.created_at || null, Number(x.amount || 0)]),
@@ -1556,6 +1599,7 @@ function applyAdminStatsView() {
 
   const nextSignature = JSON.stringify({
     period,
+    selectedSensorId,
     purchasesCount: purchases.length,
     climateCount: climate.length,
     purchaseTail: purchases.slice(-20).map((p) => [p.purchase_log_id || p.id || null, p.purchased_at || p.created_at || null, Number(p.amount || 0)]),
@@ -1601,6 +1645,7 @@ function applyAdminStatsView() {
   const max = (arr) => (arr.length ? Math.max(...arr) : 0);
 
   renderInfoList(el.adminClimateStats, buildInfoEntriesFromObject({
+    sensor: getTemperatureSensorLabel(selectedSensorId),
     climate_logs: climate.length,
     avg_temperature: Number(avg(temps).toFixed(2)),
     min_temperature: Number(min(temps).toFixed(2)),
@@ -1623,12 +1668,12 @@ function applyAdminStatsView() {
       mode: "line",
       aggregation: "average",
       dateSelector: getClimateLogTime,
+      includeAllBuckets: true,
     }
   );
+  const sensorLabel = getTemperatureSensorLabel(selectedSensorId);
   if (el.temperatureChartTitle) {
-    el.temperatureChartTitle.textContent = getCurrentMachineCode() === "M0002"
-      ? "Automatic temperature (°C)"
-      : "Sensor 1 temperature (°C)";
+    el.temperatureChartTitle.textContent = `${sensorLabel} temperature (°C)`;
   }
   drawSimpleLine(
     el.temperatureChart,
@@ -1639,9 +1684,32 @@ function applyAdminStatsView() {
     { yLabel: "Temperature", decimals: 1, allowNegative: true }
   );
 
+  const humiditySeries = bucketByDate(
+    climate.filter((entry) => Number.isFinite(Number(entry.humidity))),
+    (entry) => Number(entry.humidity),
+    {
+      mode: "line",
+      aggregation: "average",
+      dateSelector: getClimateLogTime,
+      includeAllBuckets: true,
+    }
+  );
+  if (el.humidityChartTitle) {
+    el.humidityChartTitle.textContent = `${sensorLabel} humidity (%)`;
+  }
+  drawSimpleLine(
+    el.humidityChart,
+    humiditySeries.labels,
+    humiditySeries.values,
+    "#2f83c5",
+    "%",
+    { yLabel: "Humidity", decimals: 1 }
+  );
+
   state.chartMeta.purchasesByDay = purchasesSeries.keys;
   state.chartMeta.revenueByDay = revenueSeries.keys;
   state.chartMeta.temperatureByTime = temperatureSeries.keys;
+  state.chartMeta.humidityByTime = humiditySeries.keys;
 
   bindCanvasPointClicks(
     el.purchasesChart,
@@ -2913,6 +2981,7 @@ function resetDashboard() {
   state.machineStatus = null;
   state.latestStatsRaw.purchases = [];
   state.latestStatsRaw.climate = [];
+  state.stats.climateRequestSequence += 1;
   state.chartRenderSignature = "";
   state.latestRenderedStatsSignature = "";
   state.pendingLockerPriceById.clear();
@@ -3067,6 +3136,28 @@ function renderPlacedLockers(placements) {
   });
 
   el.lockerGrid.appendChild(rows);
+  syncPlacedLockerHeights();
+}
+
+function syncPlacedLockerHeights() {
+  if (state.ui.lockerLayoutFrameId) {
+    window.cancelAnimationFrame(state.ui.lockerLayoutFrameId);
+  }
+  state.ui.lockerLayoutFrameId = window.requestAnimationFrame(() => {
+    state.ui.lockerLayoutFrameId = null;
+    if (!el.lockerGrid?.classList.contains("has-placement")) return;
+    const referenceLargeLocker = el.lockerGrid.querySelector(".locker-size-l");
+    const referenceLargeHeight = referenceLargeLocker?.getBoundingClientRect().height || 0;
+    el.lockerGrid.querySelectorAll(".locker-layout-row").forEach((row) => {
+      const largeLocker = row.querySelector(".locker-size-l");
+      const largeHeight = largeLocker?.getBoundingClientRect().height || referenceLargeHeight;
+      if (largeHeight <= 0) {
+        row.style.removeProperty("--locker-large-height");
+        return;
+      }
+      row.style.setProperty("--locker-large-height", `${largeHeight}px`);
+    });
+  });
 }
 
 function renderLockers() {
@@ -3698,14 +3789,18 @@ async function loadDashboard(options = {}) {
 }
 
 async function loadAdminStats(machineId) {
+  const requestSequence = ++state.stats.climateRequestSequence;
+  const climatePath = buildClimateLogsPath(machineId);
   const [purchases, climate] = await Promise.all([
     api(`/purchase_logs?machine_id=${machineId}&limit=500`).catch(() => []),
-    api(`/climate_logs?machine_id=${machineId}&limit=500`).catch(() => []),
+    api(climatePath).catch(() => []),
   ]);
 
+  if (Number(machineId) !== Number(state.selectedMachineId)) return;
   state.latestStatsRaw.purchases = purchases;
-  state.latestStatsRaw.climate = climate;
-  state.latestClimatePreview = Array.isArray(climate) ? climate.slice(0, 60) : state.latestClimatePreview;
+  if (requestSequence === state.stats.climateRequestSequence) {
+    state.latestStatsRaw.climate = climate;
+  }
   state.chartRenderSignature = "";
   state.latestRenderedStatsSignature = "";
 
@@ -3714,6 +3809,34 @@ async function loadAdminStats(machineId) {
   }
   applyAdminStatsView();
   syncCollapsibleUi();
+}
+
+async function refreshClimateStatsForSelectedPeriod() {
+  if (!state.auth.isAuthenticated || state.selectedRole !== "admin" || !state.selectedMachineId) {
+    applyAdminStatsView();
+    return;
+  }
+
+  const requestSequence = ++state.stats.climateRequestSequence;
+  const machineId = state.selectedMachineId;
+  const climate = await api(buildClimateLogsPath(machineId));
+  if (requestSequence !== state.stats.climateRequestSequence || Number(machineId) !== Number(state.selectedMachineId)) {
+    return;
+  }
+
+  state.latestStatsRaw.climate = Array.isArray(climate) ? climate : [];
+  state.chartRenderSignature = "";
+  state.latestRenderedStatsSignature = "";
+  applyAdminStatsView();
+}
+
+function refreshStatsForSelectedPeriod() {
+  state.chartRenderSignature = "";
+  state.latestRenderedStatsSignature = "";
+  applyAdminStatsView();
+  refreshClimateStatsForSelectedPeriod().catch((error) => {
+    setStatus(`Could not load climate data: ${error.message || error}`);
+  });
 }
 
 async function handleOpenLocker() {
@@ -4056,6 +4179,8 @@ function wireEvents() {
     el.apiBaseUrl.value = state.apiBaseUrl;
   }
 
+  window.addEventListener("resize", syncPlacedLockerHeights);
+
   [el.lockerPrice, el.colorR, el.colorG, el.colorB, el.setTemp].forEach((input) => {
     if (!input) return;
     input.addEventListener("focus", () => {
@@ -4149,6 +4274,28 @@ function wireEvents() {
     el.toggleClimateDetailsBtn.addEventListener("click", () => {
       state.ui.climateCollapsed = !state.ui.climateCollapsed;
       syncCollapsibleUi();
+      if (!state.ui.climateCollapsed) {
+        window.requestAnimationFrame(() => {
+          state.chartRenderSignature = "";
+          state.latestRenderedStatsSignature = "";
+          applyAdminStatsView();
+        });
+      }
+    });
+  }
+
+  if (el.climateSensorButtons) {
+    el.climateSensorButtons.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest("[data-climate-sensor]");
+      if (!button) return;
+      const sensorId = Number(button.getAttribute("data-climate-sensor"));
+      if (![1, 2, 3].includes(sensorId)) return;
+      state.stats.climateSensorId = sensorId;
+      state.chartRenderSignature = "";
+      state.latestRenderedStatsSignature = "";
+      applyAdminStatsView();
     });
   }
 
@@ -4169,7 +4316,7 @@ function wireEvents() {
           }, 0);
         }
       }
-      applyAdminStatsView();
+      refreshStatsForSelectedPeriod();
       if (el.statsPeriodSelect.value !== "custom") {
         closeStatsPeriodPanel();
       }
@@ -4208,14 +4355,14 @@ function wireEvents() {
   if (el.statsCustomFrom) {
     el.statsCustomFrom.addEventListener("change", () => {
       syncStatsRangePickerFromInputs();
-      applyAdminStatsView();
+      refreshStatsForSelectedPeriod();
     });
   }
 
   if (el.statsCustomTo) {
     el.statsCustomTo.addEventListener("change", () => {
       syncStatsRangePickerFromInputs();
-      applyAdminStatsView();
+      refreshStatsForSelectedPeriod();
     });
   }
 

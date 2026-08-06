@@ -1833,10 +1833,10 @@ body.app-authenticated {
 
   .locker-layout-rows {
     grid-template-rows: repeat(var(--locker-row-count, 2), auto);
-    align-content: center;
+    align-content: start;
     gap: 7px;
-    position: relative;
-    top: clamp(-24px, -3vh, -10px);
+    position: static;
+    margin-top: 0;
   }
 
   .locker-layout-row {

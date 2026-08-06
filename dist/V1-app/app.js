@@ -52,6 +52,8 @@ const HEADLIGHT_MODES = [
 const VERIFICATION_REFRESH_DELAYS_MS = [150, 200, 250];
 const MAX_VERIFICATION_SEND_ATTEMPTS = VERIFICATION_REFRESH_DELAYS_MS.length;
 const OPTIMISTIC_ACTIVITY_SUCCESS_TTL_MS = 120000;
+const CLIMATE_PAGE_SIZE = 5000;
+const MAX_CLIMATE_PAGES = 1000;
 
 function resolveInitialApiBaseUrl() {
   const fromQuery = new URLSearchParams(window.location.search).get("api");
@@ -148,6 +150,7 @@ const state = {
     customTo: "",
     climateSensorId: 1,
     climateRequestSequence: 0,
+    climateLoadError: "",
   },
   colorPickerModalOpen: false,
   chartRenderSignature: "",
@@ -709,7 +712,7 @@ function getCurrentMachineCode() {
 }
 
 function getTemperatureSensorLabel(sensorId) {
-  if (getCurrentMachineCode() === "M0002") {
+  if (/^M0*2$/.test(getCurrentMachineCode())) {
     const meaning = ({ 1: "Automatic", 2: "E-box", 3: "Outside" })[sensorId];
     return meaning ? `Sensor ${sensorId} — ${meaning}` : `Sensor ${sensorId}`;
   }
@@ -1412,17 +1415,62 @@ function formatClimateApiBoundary(value) {
   return value.toISOString().replace(/Z$/, "");
 }
 
-function buildClimateLogsPath(machineId) {
+function buildClimateLogsPath(machineId, options = {}) {
   const period = String(el.statsPeriodSelect?.value || "this_month");
   const { start, end } = getStatsPeriodBounds(period);
+  const limit = Math.max(1, Math.min(Number(options.limit) || CLIMATE_PAGE_SIZE, CLIMATE_PAGE_SIZE));
+  const offset = Math.max(0, Number(options.offset) || 0);
   const params = new URLSearchParams({
     machine_id: String(machineId),
     all: "true",
-    limit: "100000",
+    limit: String(limit),
+    offset: String(offset),
   });
   if (start) params.set("from", formatClimateApiBoundary(start));
   if (end) params.set("to", formatClimateApiBoundary(end));
   return `/climate_logs?${params.toString()}`;
+}
+
+function getClimateLogIdentity(entry) {
+  const rowId = entry?.climate_log_id ?? entry?.id;
+  if (rowId !== null && rowId !== undefined && rowId !== "") return `id:${rowId}`;
+  return [
+    entry?.machine_id ?? "",
+    entry?.sensor_id ?? "",
+    getClimateLogTime(entry) || "",
+    entry?.temperature ?? "",
+    entry?.humidity ?? "",
+  ].join("|");
+}
+
+async function fetchAllClimateLogsForSelectedPeriod(machineId) {
+  const climate = [];
+  const seen = new Set();
+  let offset = 0;
+
+  for (let pageIndex = 0; pageIndex < MAX_CLIMATE_PAGES; pageIndex += 1) {
+    const page = await api(buildClimateLogsPath(machineId, {
+      limit: CLIMATE_PAGE_SIZE,
+      offset,
+    }));
+    if (!Array.isArray(page)) {
+      throw new Error("Climate API returned an invalid response.");
+    }
+
+    let added = 0;
+    page.forEach((entry) => {
+      const identity = getClimateLogIdentity(entry);
+      if (seen.has(identity)) return;
+      seen.add(identity);
+      climate.push(entry);
+      added += 1;
+    });
+
+    if (page.length < CLIMATE_PAGE_SIZE || added === 0) break;
+    offset += page.length;
+  }
+
+  return climate;
 }
 
 function csvEscape(value) {
@@ -1653,7 +1701,7 @@ function applyAdminStatsView() {
     avg_humidity: Number(avg(hums).toFixed(2)),
     min_humidity: Number(min(hums).toFixed(2)),
     max_humidity: Number(max(hums).toFixed(2)),
-  }), "No climate data for selected period.");
+  }), state.stats.climateLoadError || "No climate data for selected period.");
 
   const purchasesSeries = aggregateLockerRevenue(purchases);
   const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Revenue share by locker");
@@ -2982,6 +3030,7 @@ function resetDashboard() {
   state.latestStatsRaw.purchases = [];
   state.latestStatsRaw.climate = [];
   state.stats.climateRequestSequence += 1;
+  state.stats.climateLoadError = "";
   state.chartRenderSignature = "";
   state.latestRenderedStatsSignature = "";
   state.pendingLockerPriceById.clear();
@@ -3790,16 +3839,20 @@ async function loadDashboard(options = {}) {
 
 async function loadAdminStats(machineId) {
   const requestSequence = ++state.stats.climateRequestSequence;
-  const climatePath = buildClimateLogsPath(machineId);
+  let climateLoadError = "";
   const [purchases, climate] = await Promise.all([
     api(`/purchase_logs?machine_id=${machineId}&limit=500`).catch(() => []),
-    api(climatePath).catch(() => []),
+    fetchAllClimateLogsForSelectedPeriod(machineId).catch((error) => {
+      climateLoadError = `Climate data could not be loaded: ${error.message || error}`;
+      return [];
+    }),
   ]);
 
   if (Number(machineId) !== Number(state.selectedMachineId)) return;
   state.latestStatsRaw.purchases = purchases;
   if (requestSequence === state.stats.climateRequestSequence) {
     state.latestStatsRaw.climate = climate;
+    state.stats.climateLoadError = climateLoadError;
   }
   state.chartRenderSignature = "";
   state.latestRenderedStatsSignature = "";
@@ -3819,12 +3872,13 @@ async function refreshClimateStatsForSelectedPeriod() {
 
   const requestSequence = ++state.stats.climateRequestSequence;
   const machineId = state.selectedMachineId;
-  const climate = await api(buildClimateLogsPath(machineId));
+  const climate = await fetchAllClimateLogsForSelectedPeriod(machineId);
   if (requestSequence !== state.stats.climateRequestSequence || Number(machineId) !== Number(state.selectedMachineId)) {
     return;
   }
 
   state.latestStatsRaw.climate = Array.isArray(climate) ? climate : [];
+  state.stats.climateLoadError = "";
   state.chartRenderSignature = "";
   state.latestRenderedStatsSignature = "";
   applyAdminStatsView();
@@ -3835,7 +3889,11 @@ function refreshStatsForSelectedPeriod() {
   state.latestRenderedStatsSignature = "";
   applyAdminStatsView();
   refreshClimateStatsForSelectedPeriod().catch((error) => {
-    setStatus(`Could not load climate data: ${error.message || error}`);
+    state.stats.climateLoadError = `Climate data could not be loaded: ${error.message || error}`;
+    state.chartRenderSignature = "";
+    state.latestRenderedStatsSignature = "";
+    applyAdminStatsView();
+    setStatus(state.stats.climateLoadError);
   });
 }
 

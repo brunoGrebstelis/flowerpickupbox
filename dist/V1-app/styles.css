@@ -1798,9 +1798,10 @@ body.app-authenticated {
   .locker-card {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: auto;
     min-height: 0;
     padding: 10px;
+    align-self: flex-start;
   }
 
   .locker-card-heading {
@@ -1821,9 +1822,9 @@ body.app-authenticated {
   }
 
   .locker-grid {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
-    overflow-y: auto;
+    overflow: visible;
   }
 
   .locker-grid.has-placement {
@@ -2126,14 +2127,15 @@ body.app-authenticated {
 
   .settings-view {
     display: block;
-    overflow: hidden;
+    overflow-y: auto;
   }
 
   .settings-card {
-    height: 100%;
+    height: auto;
     min-height: 0;
     padding: 9px;
-    overflow: hidden;
+    overflow: visible;
+    align-self: flex-start;
   }
 
   .settings-card > h2,
@@ -2142,7 +2144,7 @@ body.app-authenticated {
   }
 
   .settings-card #machineCommandsBlock {
-    height: 100%;
+    height: auto;
     margin: 0;
     padding: 8px;
     align-content: start;

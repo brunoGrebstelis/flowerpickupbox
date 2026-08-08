@@ -56,6 +56,7 @@ const CLIMATE_PAGE_SIZE = 5000;
 const MAX_CLIMATE_PAGES = 1000;
 const PURCHASE_PAGE_SIZE = 5000;
 const MAX_PURCHASE_PAGES = 1000;
+const RECENT_ERROR_LIMIT = 100;
 
 function resolveInitialApiBaseUrl() {
   const fromQuery = new URLSearchParams(window.location.search).get("api");
@@ -252,6 +253,7 @@ const el = {
   downloadPurchasesCsvBtn: document.getElementById("downloadPurchasesCsvBtn"),
   downloadClimateCsvBtn: document.getElementById("downloadClimateCsvBtn"),
   activityLogs: document.getElementById("activityLogs"),
+  errorLogs: document.getElementById("errorLogs"),
   purchaseLogs: document.getElementById("purchaseLogs"),
 };
 
@@ -2901,6 +2903,112 @@ function renderActivityLogs(logs) {
   });
 }
 
+function buildErrorLogSource(log) {
+  const parts = [];
+  if (log.device) parts.push(String(log.device));
+
+  const lockerNumber = Number(log.locker_number);
+  if (log.locker_number !== null && log.locker_number !== undefined && Number.isInteger(lockerNumber)) {
+    parts.push(`Locker ${lockerNumber}`);
+  } else if (log.locker_id !== null && log.locker_id !== undefined && Number.isInteger(Number(log.locker_id))) {
+    parts.push(`Locker #${log.locker_id}`);
+  }
+
+  if (log.sensor_id !== null && log.sensor_id !== undefined && Number.isInteger(Number(log.sensor_id))) {
+    parts.push(`Sensor ${log.sensor_id}`);
+  }
+
+  return parts.join(" · ");
+}
+
+async function markErrorLogRead(log, row) {
+  const errorLogId = Number(log?.error_log_id);
+  if (!Number.isInteger(errorLogId) || coerceBoolean(log.is_read) || row.classList.contains("error-log-marking-read")) {
+    return;
+  }
+
+  row.classList.add("error-log-marking-read");
+  try {
+    const result = await api(`/error_logs/${errorLogId}/read`, { method: "PUT" });
+    log.is_read = true;
+    log.read_at = result?.read_at || new Date().toISOString();
+    row.classList.remove("error-log-unread");
+    row.removeAttribute("tabindex");
+    row.removeAttribute("role");
+    row.removeAttribute("aria-label");
+    row.removeAttribute("title");
+    setStatus("Error marked as read.", true);
+  } catch (error) {
+    setStatus(`Failed to mark error as read: ${error.message || error}`);
+  } finally {
+    row.classList.remove("error-log-marking-read");
+  }
+}
+
+function renderErrorLogs(logs, loadError = "") {
+  if (!el.errorLogs) return;
+  el.errorLogs.innerHTML = "";
+
+  if (!logs || !logs.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    cell.className = "table-empty";
+    cell.textContent = loadError || "No recent errors found.";
+    row.appendChild(cell);
+    el.errorLogs.appendChild(row);
+    return;
+  }
+
+  logs.forEach((log) => {
+    const row = document.createElement("tr");
+    const isRead = coerceBoolean(log.is_read);
+
+    const whenCell = document.createElement("td");
+    whenCell.textContent = toLocalTime(log.logged_at);
+
+    const errorCell = document.createElement("td");
+    errorCell.textContent = String(log.error_name || humanizeKey(log.error_key) || `Error #${log.error_id}`);
+
+    const detailsCell = document.createElement("td");
+    const details = document.createElement("span");
+    details.className = "error-log-details";
+
+    const description = document.createElement("span");
+    description.textContent = String(log.error_description || "-");
+    details.appendChild(description);
+
+    const sourceText = buildErrorLogSource(log);
+    if (sourceText) {
+      const source = document.createElement("span");
+      source.className = "error-log-source";
+      source.textContent = sourceText;
+      details.appendChild(source);
+    }
+    detailsCell.appendChild(details);
+
+    row.appendChild(whenCell);
+    row.appendChild(errorCell);
+    row.appendChild(detailsCell);
+
+    if (!isRead) {
+      row.classList.add("error-log-unread");
+      row.tabIndex = 0;
+      row.setAttribute("role", "button");
+      row.setAttribute("aria-label", `${errorCell.textContent}, unread. Mark as read.`);
+      row.title = "Mark as read";
+      row.addEventListener("click", () => markErrorLogRead(log, row));
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        markErrorLogRead(log, row);
+      });
+    }
+
+    el.errorLogs.appendChild(row);
+  });
+}
+
 function renderPurchaseLogs(logs) {
   if (!el.purchaseLogs) return;
   el.purchaseLogs.innerHTML = "";
@@ -3137,6 +3245,7 @@ function resetDashboard() {
   renderInfoList(el.adminStats, [], "Only shown for admin users.");
   renderInfoList(el.adminClimateStats, [], "-");
   renderActivityLogs([]);
+  renderErrorLogs([]);
   renderPurchaseLogs([]);
   el.lockerGrid.innerHTML = "";
   state.lockers = [];
@@ -3863,12 +3972,14 @@ async function loadDashboard(options = {}) {
   }
 
   const machineId = state.selectedMachineId;
-  const [user, machine, status, lockers, activityLogs, purchaseLogs, climatePreview] = await Promise.all([
+  const [user, machine, status, lockers, activityLogs, errorLogs, purchaseLogs, climatePreview] = await Promise.all([
     api(`/users/${state.selectedUserId}`),
     api(`/machines/${machineId}`),
     api(`/machine_status/${machineId}`).catch(() => null),
     api(`/lockers?machine_id=${machineId}`),
     api(`/activity_logs?machine_id=${machineId}&limit=20`).catch(() => []),
+    api(`/error_logs?machine_id=${machineId}&limit=${RECENT_ERROR_LIMIT}`)
+      .catch((error) => ({ loadError: `Failed to load recent errors: ${error.message || error}` })),
     api(`/purchase_logs?machine_id=${machineId}&limit=500`).catch(() => []),
     api(`/climate_logs?machine_id=${machineId}&limit=60`).catch(() => []),
   ]);
@@ -3932,6 +4043,10 @@ async function loadDashboard(options = {}) {
 
   const _unusedUser = user;
   renderActivityLogs(activityLogs || []);
+  renderErrorLogs(
+    Array.isArray(errorLogs) ? errorLogs : [],
+    Array.isArray(errorLogs) ? "" : String(errorLogs?.loadError || "Failed to load recent errors."),
+  );
   renderPurchaseLogs(state.latestPurchasePreview);
   renderLockers();
   syncControlModesFromStatusAndLocker();

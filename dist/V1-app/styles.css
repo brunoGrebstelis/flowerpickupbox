@@ -707,6 +707,10 @@ h2 {
   max-height: 270px;
 }
 
+.table-scroll-errors {
+  max-height: 320px;
+}
+
 .table-scroll-purchases {
   max-height: 320px;
 }
@@ -741,6 +745,33 @@ h2 {
 
 .data-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.error-log-unread td {
+  font-weight: 700;
+}
+
+.error-log-unread {
+  cursor: pointer;
+}
+
+.error-log-unread:hover td,
+.error-log-unread:focus td {
+  background: #eef3fc;
+}
+
+.error-log-marking-read {
+  opacity: 0.65;
+}
+
+.error-log-details {
+  display: grid;
+  gap: 3px;
+}
+
+.error-log-source {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .table-empty {
@@ -1369,6 +1400,7 @@ input.failed {
   }
 
   .table-scroll-activity,
+  .table-scroll-errors,
   .table-scroll-purchases {
     max-height: 360px;
     overflow-x: hidden;

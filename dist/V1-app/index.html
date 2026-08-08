@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-  <link rel="stylesheet" href="./styles.css?v=20260806-14" />
+  <link rel="stylesheet" href="./styles.css?v=20260808-01" />
 </head>
 <body>
   <main class="app-shell">
@@ -249,6 +249,16 @@
             </table>
           </div>
         </article>
+        <article class="card">
+          <h2>Recent Errors</h2>
+          <p class="subtle">Unread errors are bold. Select an unread row to mark it as read.</p>
+          <div class="table-scroll table-scroll-errors">
+            <table class="data-table">
+              <thead><tr><th>When?</th><th>Error</th><th>Details</th></tr></thead>
+              <tbody id="errorLogs"><tr><td colspan="3" class="table-empty">-</td></tr></tbody>
+            </table>
+          </div>
+        </article>
         <p id="statusBar" class="status stats-status" aria-live="polite"></p>
       </section>
 
@@ -294,6 +304,6 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="./app.js?v=20260806-14"></script>
+  <script src="./app.js?v=20260808-01"></script>
 </body>
 </html>

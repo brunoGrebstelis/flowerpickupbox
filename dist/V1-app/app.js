@@ -2903,22 +2903,64 @@ function renderActivityLogs(logs) {
   });
 }
 
-function buildErrorLogSource(log) {
-  const parts = [];
-  if (log.device) parts.push(String(log.device));
-
+function getErrorLogLockerNumber(log) {
   const lockerNumber = Number(log.locker_number);
   if (log.locker_number !== null && log.locker_number !== undefined && Number.isInteger(lockerNumber)) {
-    parts.push(`Locker ${lockerNumber}`);
-  } else if (log.locker_id !== null && log.locker_id !== undefined && Number.isInteger(Number(log.locker_id))) {
-    parts.push(`Locker #${log.locker_id}`);
+    return lockerNumber;
+  }
+  return null;
+}
+
+function buildErrorLogDetails(log) {
+  const errorKey = String(log.error_key || "").trim().toLowerCase();
+  const lockerNumber = getErrorLogLockerNumber(log);
+  const lockerLabel = lockerNumber === null ? "" : `L${lockerNumber}`;
+  const sensorId = log.sensor_id === null || log.sensor_id === undefined
+    ? null
+    : Number(log.sensor_id);
+  const sensorLabel = Number.isInteger(sensorId) ? `S${sensorId}` : "";
+  const device = String(log.device || "").trim();
+  const description = String(
+    log.error_description
+      || log.error_name
+      || humanizeKey(log.error_key)
+      || `Error #${log.error_id}`,
+  ).trim();
+
+  if (errorKey === "locker_not_closed") {
+    return lockerLabel
+      ? `${lockerLabel} opened for at least 1 min.`
+      : "Locker opened for at least 1 min.";
   }
 
-  if (log.sensor_id !== null && log.sensor_id !== undefined && Number.isInteger(Number(log.sensor_id))) {
-    parts.push(`Sensor ${log.sensor_id}`);
+  if (lockerLabel) {
+    if (errorKey === "locker_jammed") return `${lockerLabel} jammed.`;
+    if (errorKey === "locker_disconnected") return `${lockerLabel} disconnected.`;
+
+    const contextualDescription = description
+      .replace(/^The locker\b/i, lockerLabel)
+      .replace(/^Locker\b/i, lockerLabel);
+    return contextualDescription === description
+      ? `${lockerLabel}: ${description}`
+      : contextualDescription;
   }
 
-  return parts.join(" · ");
+  if (sensorLabel) {
+    const contextualDescription = description
+      .replace(/^The climate sensor\b/i, sensorLabel)
+      .replace(/^Climate sensor\b/i, sensorLabel)
+      .replace(/^The sensor\b/i, sensorLabel)
+      .replace(/^Sensor\b/i, sensorLabel);
+    return contextualDescription === description
+      ? `${sensorLabel}: ${description}`
+      : contextualDescription;
+  }
+
+  if (device && !description.toLowerCase().includes(device.toLowerCase())) {
+    return `${device}: ${description}`;
+  }
+
+  return description;
 }
 
 async function markErrorLogRead(log, row) {
@@ -2939,7 +2981,13 @@ async function markErrorLogRead(log, row) {
     row.removeAttribute("title");
     setStatus("Error marked as read.", true);
   } catch (error) {
-    setStatus(`Failed to mark error as read: ${error.message || error}`);
+    const message = String(error?.message || error);
+    const routeUnavailable = /Network\/CORS error|Failed to fetch/i.test(message);
+    setStatus(
+      routeUnavailable
+        ? "Failed to mark error as read: the API route is unavailable or blocked by CORS. Deploy the latest backend API and try again."
+        : `Failed to mark error as read: ${message}`,
+    );
   } finally {
     row.classList.remove("error-log-marking-read");
   }
@@ -2971,21 +3019,7 @@ function renderErrorLogs(logs, loadError = "") {
     errorCell.textContent = String(log.error_name || humanizeKey(log.error_key) || `Error #${log.error_id}`);
 
     const detailsCell = document.createElement("td");
-    const details = document.createElement("span");
-    details.className = "error-log-details";
-
-    const description = document.createElement("span");
-    description.textContent = String(log.error_description || "-");
-    details.appendChild(description);
-
-    const sourceText = buildErrorLogSource(log);
-    if (sourceText) {
-      const source = document.createElement("span");
-      source.className = "error-log-source";
-      source.textContent = sourceText;
-      details.appendChild(source);
-    }
-    detailsCell.appendChild(details);
+    detailsCell.textContent = buildErrorLogDetails(log);
 
     row.appendChild(whenCell);
     row.appendChild(errorCell);
@@ -3972,7 +4006,7 @@ async function loadDashboard(options = {}) {
   }
 
   const machineId = state.selectedMachineId;
-  const [user, machine, status, lockers, activityLogs, errorLogs, purchaseLogs, climatePreview] = await Promise.all([
+  const [user, machine, status, lockers, activityLogs, errorLogs, errorDefinitions, purchaseLogs, climatePreview] = await Promise.all([
     api(`/users/${state.selectedUserId}`),
     api(`/machines/${machineId}`),
     api(`/machine_status/${machineId}`).catch(() => null),
@@ -3980,6 +4014,7 @@ async function loadDashboard(options = {}) {
     api(`/activity_logs?machine_id=${machineId}&limit=20`).catch(() => []),
     api(`/error_logs?machine_id=${machineId}&limit=${RECENT_ERROR_LIMIT}`)
       .catch((error) => ({ loadError: `Failed to load recent errors: ${error.message || error}` })),
+    api("/error_definitions").catch(() => []),
     api(`/purchase_logs?machine_id=${machineId}&limit=500`).catch(() => []),
     api(`/climate_logs?machine_id=${machineId}&limit=60`).catch(() => []),
   ]);
@@ -4043,8 +4078,18 @@ async function loadDashboard(options = {}) {
 
   const _unusedUser = user;
   renderActivityLogs(activityLogs || []);
+  const errorDefinitionById = new Map(
+    (Array.isArray(errorDefinitions) ? errorDefinitions : [])
+      .map((definition) => [Number(definition.error_id), definition]),
+  );
+  const enrichedErrorLogs = Array.isArray(errorLogs)
+    ? errorLogs.map((log) => ({
+      ...(errorDefinitionById.get(Number(log.error_id)) || {}),
+      ...log,
+    }))
+    : [];
   renderErrorLogs(
-    Array.isArray(errorLogs) ? errorLogs : [],
+    enrichedErrorLogs,
     Array.isArray(errorLogs) ? "" : String(errorLogs?.loadError || "Failed to load recent errors."),
   );
   renderPurchaseLogs(state.latestPurchasePreview);

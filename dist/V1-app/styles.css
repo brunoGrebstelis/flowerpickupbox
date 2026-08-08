@@ -764,16 +764,6 @@ h2 {
   opacity: 0.65;
 }
 
-.error-log-details {
-  display: grid;
-  gap: 3px;
-}
-
-.error-log-source {
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .table-empty {
   text-align: center;
   color: var(--muted);

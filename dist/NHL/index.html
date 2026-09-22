@@ -12,24 +12,24 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <a class="brand" href="#games" aria-label="Puck home"><span class="brand-mark">P</span><span>PUCK</span></a>
+      <a class="brand" href="#games" aria-label="NHL home"><img class="nhl-logo" src="https://assets.nhle.com/logos/nhl/svg/NHL_light.svg" alt="NHL" /><span>NHL</span></a>
       <nav class="nav" aria-label="Main navigation">
-        <button class="nav-link active" data-view="games"><span class="nav-icon">⌁</span> Games</button>
-        <button class="nav-link" data-view="players"><span class="nav-icon">♙</span> Players</button>
-        <button class="nav-link" data-view="stats"><span class="nav-icon">▥</span> Stats</button>
+        <button class="nav-link active" data-view="games"><span class="nav-icon">G</span><span>Games</span></button>
+        <button class="nav-link" data-view="players"><span class="nav-icon">P</span><span>Players</span></button>
+        <button class="nav-link" data-view="stats"><span class="nav-icon">S</span><span>Stats</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="season-pill"><span></span> <span id="seasonLabel">Current season</span></div>
-        <button class="settings-trigger" data-view="settings"><span class="nav-icon">⚙</span> Settings</button>
+        <button class="settings-trigger" data-view="settings"><span class="nav-icon">+</span> Settings</button>
         <p class="sidebar-note">Live data from NHL.com</p>
       </div>
     </aside>
 
     <main class="main-content">
       <header class="topbar">
-        <button id="menuButton" class="menu-button" aria-label="Open menu">☰</button>
+        <button id="menuButton" class="menu-button" aria-label="Open menu">Menu</button>
         <div id="breadcrumb" class="eyebrow">MY NHL / GAMES</div>
-        <div class="top-actions"><span id="syncStatus" class="sync-status">● Updated just now</span><button id="refreshButton" class="icon-button" title="Refresh live data">↻</button></div>
+        <div class="top-actions"><span id="syncStatus" class="sync-status">Updated</span><button id="refreshButton" class="icon-button" title="Refresh live data">R</button><button class="mobile-settings" data-view="settings">Settings</button></div>
       </header>
 
       <section id="games" class="view active">

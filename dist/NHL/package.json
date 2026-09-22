@@ -1,0 +1,5 @@
+{
+  "name": "nhl-dashboard",
+  "private": true,
+  "scripts": { "start": "node server.js" }
+}

@@ -18,13 +18,13 @@ h2,.summary-stat strong,.player-card h3 { font-family:'DM Sans',sans-serif; }
 .nhl-logo { width:32px; height:32px; object-fit:contain; } .mobile-settings { display:none; }
 .mobile-nhl-logo { display:none; }
 @media(max-width:850px){
-  body { padding-bottom:calc(88px + env(safe-area-inset-bottom)); }
-  .sidebar { width:calc(100% - 24px); min-height:64px; height:64px; padding:5px 8px; top:auto; bottom:max(10px, env(safe-area-inset-bottom)); left:12px; transform:none; display:block; border:1px solid #274057; border-radius:20px; box-shadow:0 12px 30px rgba(4,14,23,.3); }
+  body { padding-bottom:calc(72px + env(safe-area-inset-bottom)); }
+  .sidebar { width:100%; min-height:68px; height:calc(68px + env(safe-area-inset-bottom)); padding:7px 12px calc(8px + env(safe-area-inset-bottom)); top:auto; bottom:0; left:0; transform:none; display:block; border:0; border-top:1px solid #274057; border-radius:16px 16px 0 0; box-shadow:0 -7px 24px rgba(4,14,23,.22); }
   .sidebar.open { transform:none; }
   .sidebar .brand,.sidebar-bottom { display:none; }
   .sidebar .nav { margin:0; display:grid; grid-template-columns:repeat(3,1fr); gap:4px; height:100%; }
-  .nav-link { height:52px; padding:4px 6px; justify-content:center; flex-direction:column; gap:4px; border-radius:14px; font-size:10px; color:#a9b8c5; }
-  .nav-link.active { box-shadow:none; background:#e9463f; color:#fff; }
+  .nav-link { height:53px; padding:4px 6px; justify-content:center; flex-direction:column; gap:4px; border-radius:10px; font-size:10px; color:#a9b8c5; }
+  .nav-link.active { box-shadow:none; background:#1b3449; color:#fff; }
   .nav-icon { width:19px; height:19px; display:grid; place-items:center; border:1px solid currentColor; border-radius:50%; font-size:10px; font-weight:700; line-height:1; }
   .main-content { padding-bottom:0; }
   .menu-button,#breadcrumb,.sync-status { display:none; }

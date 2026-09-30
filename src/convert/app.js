@@ -20,6 +20,7 @@ const widthInput = document.querySelector('#svg-width');
 const heightInput = document.querySelector('#svg-height');
 const svgDownload = document.querySelector('#svg-download');
 const sizeUnit = document.querySelector('#size-unit');
+const reverseColours = document.querySelector('#reverse-colours');
 let tracingReady;
 let uploadedSvg;
 let displayUnit = 'px';
@@ -101,10 +102,30 @@ function setDimensionInputs(widthPx, heightPx) {
   widthInput.value = roundForUnit(pixelsToUnit(widthPx));
   heightInput.value = roundForUnit(pixelsToUnit(heightPx));
 }
+function applyReverseColours(root) {
+  if (!reverseColours.checked) return;
+  const namespace = 'http://www.w3.org/2000/svg';
+  const documentRef = root.ownerDocument;
+  let defs = [...root.children].find((child) => child.localName === 'defs');
+  if (!defs) { defs = documentRef.createElementNS(namespace, 'defs'); root.prepend(defs); }
+  const filter = documentRef.createElementNS(namespace, 'filter');
+  filter.setAttribute('id', 'converter-reverse-colours');
+  filter.setAttribute('x', '-10%'); filter.setAttribute('y', '-10%');
+  filter.setAttribute('width', '120%'); filter.setAttribute('height', '120%');
+  const matrix = documentRef.createElementNS(namespace, 'feColorMatrix');
+  matrix.setAttribute('type', 'matrix');
+  matrix.setAttribute('values', '-1 0 0 0 1  0 -1 0 0 1  0 0 -1 0 1  0 0 0 1 0');
+  filter.append(matrix); defs.append(filter);
+  const content = documentRef.createElementNS(namespace, 'g');
+  content.setAttribute('filter', 'url(#converter-reverse-colours)');
+  [...root.children].filter((child) => child !== defs).forEach((child) => content.append(child));
+  root.append(content);
+}
 function sizedSvg() {
   const root = new DOMParser().parseFromString(uploadedSvg.text, 'image/svg+xml').documentElement;
   root.setAttribute('width', `${widthInput.value}${sizeUnit.value}`);
   root.setAttribute('height', `${heightInput.value}${sizeUnit.value}`);
+  applyReverseColours(root);
   return new XMLSerializer().serializeToString(root);
 }
 function setSvgSize(changed) {
@@ -134,6 +155,7 @@ sizeUnit.addEventListener('change', () => {
   displayUnit = sizeUnit.value;
   svgPreview.innerHTML = sizedSvg();
 });
+reverseColours.addEventListener('change', () => { if (uploadedSvg) svgPreview.innerHTML = sizedSvg(); });
 svgDownload.addEventListener('click', () => { if (uploadedSvg) downloadText(sizedSvg(), uploadedSvg.name.replace(/\.svg$/i, '-sized.svg')); });
 wireDropZone(pngDropZone, pngInput, handlePngFiles);
 wireDropZone(svgDropZone, svgInput, handleSvgFiles);

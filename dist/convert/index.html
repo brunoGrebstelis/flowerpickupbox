@@ -9,14 +9,11 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="wordmark" href="#convert">PNG to SVG</a>
-    <p>Simple browser tools for graphics</p>
     <a class="back-link" href="../index.html">Main site <span aria-hidden="true">↗</span></a>
   </header>
   <nav class="classic-nav" aria-label="Tool navigation">
-    <a href="#convert">Convert</a>
-    <a href="#svg">SVG</a>
-    <span>More soon</span>
+    <a href="#convert" data-section="convert">Convert</a>
+    <a href="#svg" data-section="svg">SVG</a>
   </nav>
   <main>
     <section class="tool-section" id="convert" aria-labelledby="convert-title">
@@ -36,18 +33,17 @@
           <div class="svg-preview" id="svg-preview" aria-label="SVG preview"></div>
           <div class="size-controls">
             <label class="unit-selector" for="size-unit">Units <select id="size-unit"><option value="px">Pixels (px)</option><option value="mm">Millimetres (mm)</option></select></label>
-            <label class="reverse-option" for="reverse-colours"><input id="reverse-colours" type="checkbox"> Reverse colours</label>
-            <p class="file-name" id="svg-file-name"></p>
+            <label class="reverse-option" for="mirror-svg"><input id="mirror-svg" type="checkbox"> Mirror horizontally</label>
+            <div class="file-row"><p class="file-name" id="svg-file-name"></p><button class="remove-file" id="svg-clear" type="button" aria-label="Remove SVG">×</button></div>
             <dl class="source-size"><div><dt>Original</dt><dd id="original-size">—</dd></div><div><dt>Ratio</dt><dd id="aspect-ratio">—</dd></div></dl>
-            <div class="dimension-fields"><label>Width <input id="svg-width" type="number" min="1" step="1" inputmode="numeric"> <span>px</span></label><span class="ratio-lock" title="Aspect ratio locked" aria-label="Aspect ratio locked">↔</span><label>Height <input id="svg-height" type="number" min="1" step="1" inputmode="numeric"> <span>px</span></label></div>
+            <div class="dimension-fields"><label>Width <input id="svg-width" type="number" min="1" step="1" inputmode="numeric"> <span class="dimension-unit">px</span></label><span class="ratio-lock" title="Aspect ratio locked" aria-label="Aspect ratio locked">↔</span><label>Height <input id="svg-height" type="number" min="1" step="1" inputmode="numeric"> <span class="dimension-unit">px</span></label></div>
             <button class="download-button" id="svg-download" type="button">Download SVG <span aria-hidden="true">↓</span></button>
           </div>
         </div>
       </div>
     </section>
-    <section class="future-section" aria-label="Future tool sections"></section>
   </main>
-  <template id="result-template"><article class="result-card"><div class="result-preview"></div><div class="result-meta"><p class="result-name"></p><span class="result-dimensions"></span></div><button class="download-button" type="button">Download SVG <span aria-hidden="true">↓</span></button></article></template>
+  <template id="result-template"><article class="result-card"><button class="remove-file" type="button" aria-label="Remove converted file">×</button><div class="result-preview"></div><div class="result-meta"><p class="result-name"></p><span class="result-dimensions"></span></div><button class="download-button" type="button">Download SVG <span aria-hidden="true">↓</span></button></article></template>
   <script type="module" src="app.js"></script>
 </body>
 </html>

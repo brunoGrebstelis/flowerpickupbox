@@ -2,6 +2,7 @@ import { initVtracer, vectorize_rgba } from './vendor/vtracer-wasm.mjs';
 
 const ALPHA_THRESHOLD = 128;
 const INK_THRESHOLD = 220;
+const MM_PER_PX = 25.4 / 96;
 const tracerOptions = { clustering: 'bw', mode: 'spline', filterSpeckle: 8, binaryThreshold: 128, pathPrecision: 4, simplify: 1 };
 const pngInput = document.querySelector('#png-input');
 const pngDropZone = document.querySelector('#png-drop-zone');
@@ -18,8 +19,10 @@ const aspectRatio = document.querySelector('#aspect-ratio');
 const widthInput = document.querySelector('#svg-width');
 const heightInput = document.querySelector('#svg-height');
 const svgDownload = document.querySelector('#svg-download');
+const sizeUnit = document.querySelector('#size-unit');
 let tracingReady;
 let uploadedSvg;
+let displayUnit = 'px';
 
 function ensureTracer() { if (!tracingReady) tracingReady = initVtracer(); return tracingReady; }
 function wireDropZone(zone, input, onFiles) {
@@ -80,20 +83,34 @@ function readSvgDimensions(text) {
   const root = new DOMParser().parseFromString(text, 'image/svg+xml').documentElement;
   if (root.nodeName === 'parsererror' || root.nodeName.toLowerCase() !== 'svg') throw new Error('Invalid SVG');
   const viewBox = root.getAttribute('viewBox')?.trim().split(/[ ,]+/).map(Number);
-  const width = Number.parseFloat(root.getAttribute('width')) || viewBox?.[2];
-  const height = Number.parseFloat(root.getAttribute('height')) || viewBox?.[3];
+  const parseLength = (attribute, fallback) => {
+    const match = attribute?.trim().match(/^([0-9.]+)\s*(mm|px)?$/i);
+    if (!match) return fallback;
+    const value = Number(match[1]);
+    return match[2]?.toLowerCase() === 'mm' ? value / MM_PER_PX : value;
+  };
+  const width = parseLength(root.getAttribute('width'), viewBox?.[2]);
+  const height = parseLength(root.getAttribute('height'), viewBox?.[3]);
   if (!width || !height) throw new Error('SVG has no usable dimensions');
   return { width, height };
 }
+function roundForUnit(value) { return sizeUnit.value === 'mm' ? Number(value.toFixed(2)) : Math.round(value); }
+function pixelsToUnit(value) { return sizeUnit.value === 'mm' ? value * MM_PER_PX : value; }
+function unitToPixels(value) { return sizeUnit.value === 'mm' ? value / MM_PER_PX : value; }
+function setDimensionInputs(widthPx, heightPx) {
+  widthInput.value = roundForUnit(pixelsToUnit(widthPx));
+  heightInput.value = roundForUnit(pixelsToUnit(heightPx));
+}
 function sizedSvg() {
   const root = new DOMParser().parseFromString(uploadedSvg.text, 'image/svg+xml').documentElement;
-  root.setAttribute('width', widthInput.value); root.setAttribute('height', heightInput.value);
+  root.setAttribute('width', `${widthInput.value}${sizeUnit.value}`);
+  root.setAttribute('height', `${heightInput.value}${sizeUnit.value}`);
   return new XMLSerializer().serializeToString(root);
 }
 function setSvgSize(changed) {
   if (!uploadedSvg) return;
-  const entered = Number.parseFloat(changed === 'width' ? widthInput.value : heightInput.value); if (!entered || entered <= 0) return;
-  if (changed === 'width') heightInput.value = Math.round(entered / uploadedSvg.ratio); else widthInput.value = Math.round(entered * uploadedSvg.ratio);
+  const entered = unitToPixels(Number.parseFloat(changed === 'width' ? widthInput.value : heightInput.value)); if (!entered || entered <= 0) return;
+  if (changed === 'width') heightInput.value = roundForUnit(pixelsToUnit(entered / uploadedSvg.ratio)); else widthInput.value = roundForUnit(pixelsToUnit(entered * uploadedSvg.ratio));
   svgPreview.innerHTML = sizedSvg();
 }
 async function handleSvgFiles(files) {
@@ -101,12 +118,22 @@ async function handleSvgFiles(files) {
   try {
     const text = await file.text(); const dimensions = readSvgDimensions(text);
     uploadedSvg = { text, name: file.name, ratio: dimensions.width / dimensions.height };
-    svgFileName.textContent = file.name; originalSize.textContent = `${Math.round(dimensions.width)} × ${Math.round(dimensions.height)} px`; aspectRatio.textContent = `${uploadedSvg.ratio.toFixed(3)} : 1`;
-    widthInput.value = Math.round(dimensions.width); heightInput.value = Math.round(dimensions.height); svgPreview.innerHTML = text; sizePanel.hidden = false;
+    svgFileName.textContent = file.name;
+    originalSize.textContent = `${Math.round(dimensions.width)} × ${Math.round(dimensions.height)} px (${(dimensions.width * MM_PER_PX).toFixed(2)} × ${(dimensions.height * MM_PER_PX).toFixed(2)} mm)`;
+    aspectRatio.textContent = `${uploadedSvg.ratio.toFixed(3)} : 1`;
+    setDimensionInputs(dimensions.width, dimensions.height); svgPreview.innerHTML = text; sizePanel.hidden = false;
   } catch (error) { console.error(error); svgDropZone.querySelector('p').innerHTML = '<strong>That SVG could not be read.</strong> Please try another file.'; }
 }
 widthInput.addEventListener('input', () => setSvgSize('width'));
 heightInput.addEventListener('input', () => setSvgSize('height'));
+sizeUnit.addEventListener('change', () => {
+  if (!uploadedSvg) return;
+  const widthPx = Number.parseFloat(widthInput.value) * (displayUnit === 'mm' ? 1 / MM_PER_PX : 1);
+  const heightPx = Number.parseFloat(heightInput.value) * (displayUnit === 'mm' ? 1 / MM_PER_PX : 1);
+  setDimensionInputs(widthPx, heightPx);
+  displayUnit = sizeUnit.value;
+  svgPreview.innerHTML = sizedSvg();
+});
 svgDownload.addEventListener('click', () => { if (uploadedSvg) downloadText(sizedSvg(), uploadedSvg.name.replace(/\.svg$/i, '-sized.svg')); });
 wireDropZone(pngDropZone, pngInput, handlePngFiles);
 wireDropZone(svgDropZone, svgInput, handleSvgFiles);

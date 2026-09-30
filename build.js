@@ -34,15 +34,17 @@ const PART_DIR   = path.join(SRC, 'partials');
 /* top-level asset dirs (NOT under src/) */
 const IMG_DIR     = path.join(ROOT, 'img');
 const GALLERY_DIR = path.join(ROOT, 'gallery');
+const CONVERT_DIR = path.join(SRC, 'convert');
 
 /* ---------------------------------------------------------------- Helpers -- */
 function ensureDirSync(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function emptyDirSync(dir) {
+function emptyDirSync(dir, preservedEntries = new Set()) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir)) {
+    if (preservedEntries.has(entry)) continue;
     const full = path.join(dir, entry);
     const stat = fs.lstatSync(full);
     if (stat.isDirectory()) {
@@ -132,7 +134,9 @@ function renderSite() {
 
   /* Clean dist */
   ensureDirSync(DIST);
-  emptyDirSync(DIST);
+  // These are independent applications maintained directly in dist.
+  // Keep them when rebuilding the main marketing site.
+  emptyDirSync(DIST, new Set(['NHL', 'V1-app', 'portfolio']));
 
   const pageCtx = {
     langData,
@@ -162,6 +166,7 @@ function copyAssets() {
   copyDirSync(DATA_DIR,    path.join(DIST, 'data'));
   copyDirSync(IMG_DIR,     path.join(DIST, 'img'));
   copyDirSync(GALLERY_DIR, path.join(DIST, 'gallery'));
+  copyDirSync(CONVERT_DIR, path.join(DIST, 'convert'));
   console.log('✓ Copied assets (css, js, data, img, gallery)');
 }
 

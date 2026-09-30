@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A private, browser-based PNG to SVG converter.">
+  <title>Convert — PNG to SVG</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="#convert">CONVERT</a>
+    <p>PNG to SVG, privately in your browser.</p>
+    <a class="back-link" href="../index.html">Main site <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <section class="tool-section" id="convert" aria-labelledby="convert-title">
+      <div class="section-heading"><p class="eyebrow">01</p><div><h1 id="convert-title">Convert</h1><p class="section-copy">Drop PNG files. They are converted into editable SVG paths without leaving this browser.</p></div></div>
+      <div class="drop-zone" id="png-drop-zone" tabindex="0" role="button" aria-controls="png-input">
+        <input id="png-input" type="file" accept="image/png" multiple>
+        <span class="drop-icon" aria-hidden="true">+</span><p><strong>Drop PNGs here</strong> or choose from your computer</p><span>Multiple files supported · PNG only</span>
+      </div>
+      <div class="conversion-status" id="conversion-status" role="status" aria-live="polite"></div>
+      <div class="result-grid" id="conversion-results"></div>
+    </section>
+    <section class="tool-section svg-section" id="svg" aria-labelledby="svg-title">
+      <div class="section-heading"><p class="eyebrow">02</p><div><h2 id="svg-title">SVG</h2><p class="section-copy">Upload an SVG to check its intended dimensions, then set a new width or height. The other value stays in proportion.</p></div></div>
+      <div class="svg-workspace">
+        <div class="drop-zone compact" id="svg-drop-zone" tabindex="0" role="button" aria-controls="svg-input"><input id="svg-input" type="file" accept="image/svg+xml,.svg"><span class="drop-icon" aria-hidden="true">+</span><p><strong>Drop an SVG here</strong> or choose a file</p></div>
+        <div class="size-panel" id="size-panel" hidden>
+          <div class="svg-preview" id="svg-preview" aria-label="SVG preview"></div>
+          <div class="size-controls">
+            <p class="file-name" id="svg-file-name"></p>
+            <dl class="source-size"><div><dt>Original</dt><dd id="original-size">—</dd></div><div><dt>Ratio</dt><dd id="aspect-ratio">—</dd></div></dl>
+            <div class="dimension-fields"><label>Width <input id="svg-width" type="number" min="1" step="1" inputmode="numeric"> <span>px</span></label><span class="ratio-lock" title="Aspect ratio locked" aria-label="Aspect ratio locked">↔</span><label>Height <input id="svg-height" type="number" min="1" step="1" inputmode="numeric"> <span>px</span></label></div>
+            <button class="download-button" id="svg-download" type="button">Download SVG <span aria-hidden="true">↓</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="future-section" aria-label="Future tool sections"></section>
+  </main>
+  <template id="result-template"><article class="result-card"><div class="result-preview"></div><div class="result-meta"><p class="result-name"></p><span class="result-dimensions"></span></div><button class="download-button" type="button">Download SVG <span aria-hidden="true">↓</span></button></article></template>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

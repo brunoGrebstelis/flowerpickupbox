@@ -23,27 +23,19 @@
         <span class="drop-icon" aria-hidden="true">+</span><p><strong>Drop PNGs here</strong> or choose from your computer</p><span>Multiple files supported · PNG only</span>
       </div>
       <div class="conversion-status" id="conversion-status" role="status" aria-live="polite"></div>
+      <div class="convert-actions" id="convert-actions" hidden><button class="download-button" id="zip-download" type="button">Download all as ZIP</button></div>
       <div class="result-grid" id="conversion-results"></div>
     </section>
     <section class="tool-section svg-section" id="svg" aria-labelledby="svg-title">
       <div class="section-heading"><p class="eyebrow">02</p><div><h2 id="svg-title">SVG</h2><p class="section-copy">Upload an SVG to check its intended dimensions, then set a new width or height. The other value stays in proportion.</p></div></div>
       <div class="svg-workspace">
         <div class="drop-zone compact" id="svg-drop-zone" tabindex="0" role="button" aria-controls="svg-input"><input id="svg-input" type="file" accept="image/svg+xml,.svg"><span class="drop-icon" aria-hidden="true">+</span><p><strong>Drop an SVG here</strong> or choose a file</p></div>
-        <div class="size-panel" id="size-panel" hidden>
-          <div class="svg-preview" id="svg-preview" aria-label="SVG preview"></div>
-          <div class="size-controls">
-            <label class="unit-selector" for="size-unit">Units <select id="size-unit"><option value="px">Pixels (px)</option><option value="mm">Millimetres (mm)</option></select></label>
-            <label class="reverse-option" for="mirror-svg"><input id="mirror-svg" type="checkbox"> Mirror horizontally</label>
-            <div class="file-row"><p class="file-name" id="svg-file-name"></p><button class="remove-file" id="svg-clear" type="button" aria-label="Remove SVG">×</button></div>
-            <dl class="source-size"><div><dt>Original</dt><dd id="original-size">—</dd></div><div><dt>Ratio</dt><dd id="aspect-ratio">—</dd></div></dl>
-            <div class="dimension-fields"><label>Width <input id="svg-width" type="number" min="1" step="1" inputmode="numeric"> <span class="dimension-unit">px</span></label><span class="ratio-lock" title="Aspect ratio locked" aria-label="Aspect ratio locked">↔</span><label>Height <input id="svg-height" type="number" min="1" step="1" inputmode="numeric"> <span class="dimension-unit">px</span></label></div>
-            <button class="download-button" id="svg-download" type="button">Download SVG <span aria-hidden="true">↓</span></button>
-          </div>
-        </div>
+        <div class="svg-items" id="svg-items"></div>
       </div>
     </section>
   </main>
-  <template id="result-template"><article class="result-card"><button class="remove-file" type="button" aria-label="Remove converted file">×</button><div class="result-preview"></div><div class="result-meta"><p class="result-name"></p><span class="result-dimensions"></span></div><button class="download-button" type="button">Download SVG <span aria-hidden="true">↓</span></button></article></template>
+  <template id="result-template"><article class="result-card"><button class="remove-file" type="button" aria-label="Remove converted file">×</button><div class="result-preview"></div><div class="result-meta"><p class="result-name"></p><span class="result-dimensions"></span></div><div class="result-buttons"><button class="move-to-svg" type="button">Move to SVG</button><button class="download-button" type="button">Download SVG</button></div></article></template>
+  <template id="svg-item-template"><article class="size-panel svg-item"><div class="svg-preview" aria-label="SVG preview"></div><div class="size-controls"><label class="unit-selector">Units <select class="size-unit"><option value="px">Pixels (px)</option><option value="mm">Millimetres (mm)</option></select></label><label class="reverse-option"><input class="mirror-svg" type="checkbox"> Mirror horizontally</label><div class="file-row"><p class="file-name"></p><button class="remove-file" type="button" aria-label="Remove SVG">×</button></div><dl class="source-size"><div><dt>Original</dt><dd class="original-size"></dd></div><div><dt>Ratio</dt><dd class="aspect-ratio"></dd></div></dl><div class="dimension-fields"><label>Width <input class="svg-width" type="number" min="1" step="1" inputmode="numeric"> <span class="dimension-unit">px</span></label><span class="ratio-lock" title="Aspect ratio locked">↔</span><label>Height <input class="svg-height" type="number" min="1" step="1" inputmode="numeric"> <span class="dimension-unit">px</span></label></div><button class="download-button" type="button">Download SVG</button></div></article></template>
   <script type="module" src="app.js"></script>
 </body>
 </html>

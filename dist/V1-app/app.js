@@ -1697,7 +1697,7 @@ function formatCsvDateAndTime(value) {
   const pad = (n) => String(n).padStart(2, "0");
   return {
     date: formatDateParts(parts),
-    time: `${pad(parts.hour)}:${pad(parts.minute)}:${pad(parts.second)}`,
+    time: `${pad(parts.hour)}:${pad(parts.minute)}`,
   };
 }
 
@@ -1705,7 +1705,7 @@ function buildDisplayTimeFilenameStamp(value = new Date()) {
   const parts = getDisplayTimeParts(value);
   if (!parts) return "";
   const pad = (n) => String(n).padStart(2, "0");
-  return `${parts.year}${pad(parts.month)}${pad(parts.day)}_${pad(parts.hour)}${pad(parts.minute)}${pad(parts.second)}`;
+  return `${parts.year}${pad(parts.month)}${pad(parts.day)}_${pad(parts.hour)}${pad(parts.minute)}`;
 }
 
 function getClimateLogTime(entry) {
@@ -2371,10 +2371,15 @@ function toLocalTime(value) {
   if (!dt) {
     return String(value);
   }
-  return dt.toLocaleString(undefined, {
+  const parts = getDisplayTimeParts(dt);
+  const date = dt.toLocaleDateString(undefined, {
     timeZone: DISPLAY_TIME_ZONE,
-    timeZoneName: "short",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
   });
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date}, ${pad(parts.hour)}:${pad(parts.minute)}`;
 }
 
 function sleep(ms) {

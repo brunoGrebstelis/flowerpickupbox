@@ -1,4 +1,6 @@
 const DEFAULT_API_BASE_URL = "https://xaufumsuck.execute-api.eu-central-1.amazonaws.com";
+const DISPLAY_TIME_ZONE = "Europe/Berlin";
+const DISPLAY_TIME_ZONE_LABEL = "Europe/Berlin (CET/CEST)";
 
 const STORAGE_KEYS = {
   apiBaseUrl: "apiBaseUrl",
@@ -258,7 +260,11 @@ const el = {
 };
 
 function formatMonthYearLabel(dateObj = new Date()) {
-  return dateObj.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return dateObj.toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+    timeZone: DISPLAY_TIME_ZONE,
+  });
 }
 
 function updateStatsPeriodButtonLabel() {
@@ -280,14 +286,14 @@ function updateStatsPeriodButtonLabel() {
     return;
   }
   if (mode === "last_month") {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
+    const nowParts = getDisplayTimeParts(new Date());
+    const d = new Date(Date.UTC(nowParts.year, nowParts.month - 2, 15, 12));
     el.statsPeriodToggleBtn.textContent = formatMonthYearLabel(d);
     syncStatsPeriodMenuActiveState();
     return;
   }
   if (mode === "this_year") {
-    el.statsPeriodToggleBtn.textContent = String(new Date().getFullYear());
+    el.statsPeriodToggleBtn.textContent = String(getDisplayTimeParts(new Date()).year);
     syncStatsPeriodMenuActiveState();
     return;
   }
@@ -752,6 +758,77 @@ function parseDateMaybe(value) {
   const dt = new Date(normalized);
   if (Number.isNaN(dt.getTime())) return null;
   return dt;
+}
+
+const displayTimePartsFormatter = new Intl.DateTimeFormat("en-GB-u-ca-gregory-nu-latn", {
+  timeZone: DISPLAY_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function getDisplayTimeParts(value) {
+  const dt = value instanceof Date ? value : parseDateMaybe(value);
+  if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return null;
+
+  const parts = {};
+  displayTimePartsFormatter.formatToParts(dt).forEach(({ type, value: partValue }) => {
+    if (type !== "literal") parts[type] = Number(partValue);
+  });
+  return parts;
+}
+
+function formatDateParts(parts) {
+  if (!parts) return "";
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
+}
+
+function shiftCalendarDate(parts, { days = 0, months = 0 } = {}) {
+  const shifted = new Date(Date.UTC(parts.year, parts.month - 1 + months, parts.day + days, 12));
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+// Convert a wall-clock time in Europe/Berlin to its exact UTC instant. Iterating
+// the offset keeps this correct across both CET and CEST without hard-coded offsets.
+function displayWallTimeToDate(parts) {
+  const second = Number(parts.second) || 0;
+  const millisecond = Number(parts.millisecond) || 0;
+  const expectedWallTime = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour) || 0,
+    Number(parts.minute) || 0,
+    second,
+  );
+  let timestamp = expectedWallTime;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const actual = getDisplayTimeParts(new Date(timestamp));
+    if (!actual) break;
+    const actualWallTime = Date.UTC(
+      actual.year,
+      actual.month - 1,
+      actual.day,
+      actual.hour,
+      actual.minute,
+      actual.second,
+    );
+    const adjustment = expectedWallTime - actualWallTime;
+    timestamp += adjustment;
+    if (adjustment === 0) break;
+  }
+
+  return new Date(timestamp + millisecond);
 }
 
 function getCurrentMachineCode() {
@@ -1228,19 +1305,21 @@ function drawSimpleLine(canvas, labels, values, color, suffix = "", options = {}
 
 function buildBucketKey(dt, bucketType = "day") {
   if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return "";
+  const parts = getDisplayTimeParts(dt);
+  if (!parts) return "";
+  const dateKey = formatDateParts(parts);
   if (bucketType === "hour") {
-    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")} ${String(dt.getHours()).padStart(2, "0")}:00`;
+    return `${dateKey} ${String(parts.hour).padStart(2, "0")}:00`;
   }
   if (bucketType === "week") {
-    const day = new Date(dt);
-    const dayOfWeek = (day.getDay() + 6) % 7;
-    day.setDate(day.getDate() - dayOfWeek);
-    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    const day = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    const dayOfWeek = (day.getUTCDay() + 6) % 7;
+    return formatDateParts(shiftCalendarDate(parts, { days: -dayOfWeek }));
   }
   if (bucketType === "month") {
-    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+    return `${parts.year}-${String(parts.month).padStart(2, "0")}`;
   }
-  return dt.toISOString().slice(0, 10);
+  return dateKey;
 }
 
 function bucketByDate(logs, valueSelector, options = {}) {
@@ -1423,29 +1502,47 @@ function getStatsPeriodBounds(period) {
   const now = new Date();
   if (period === "all_time") return { start: null, end: null };
 
+  const today = getDisplayTimeParts(now);
+  const todayStart = displayWallTimeToDate({
+    year: today.year,
+    month: today.month,
+    day: today.day,
+  });
+
   let start = null;
   let end = now;
   if (period === "today") {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    start = todayStart;
   } else if (period === "yesterday") {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+    start = displayWallTimeToDate(shiftCalendarDate(today, { days: -1 }));
+    end = new Date(todayStart.getTime() - 1);
   } else if (period === "last_7_days") {
     start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   } else if (period === "last_month") {
-    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const thisMonth = { year: today.year, month: today.month, day: 1 };
+    start = displayWallTimeToDate(shiftCalendarDate(thisMonth, { months: -1 }));
+    end = new Date(displayWallTimeToDate(thisMonth).getTime() - 1);
   } else if (period === "last_30_days") {
     start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   } else if (period === "this_year") {
-    start = new Date(now.getFullYear(), 0, 1);
+    start = displayWallTimeToDate({ year: today.year, month: 1, day: 1 });
   } else if (period === "custom") {
     const fromRaw = String(el.statsCustomFrom?.value || "").trim();
     const toRaw = String(el.statsCustomTo?.value || "").trim();
-    start = fromRaw ? new Date(`${fromRaw}T00:00:00`) : null;
-    end = toRaw ? new Date(`${toRaw}T23:59:59.999`) : null;
+    const parseCalendarInput = (raw) => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+      return match
+        ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
+        : null;
+    };
+    const fromParts = parseCalendarInput(fromRaw);
+    const toParts = parseCalendarInput(toRaw);
+    start = fromParts ? displayWallTimeToDate(fromParts) : null;
+    end = toParts
+      ? displayWallTimeToDate({ ...toParts, hour: 23, minute: 59, second: 59, millisecond: 999 })
+      : null;
   } else {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    start = displayWallTimeToDate({ year: today.year, month: today.month, day: 1 });
   }
 
   return { start, end };
@@ -1593,15 +1690,22 @@ function csvEscape(value) {
 }
 
 function formatCsvDateAndTime(value) {
-  const dt = parseDateMaybe(value);
-  if (!dt) {
+  const parts = getDisplayTimeParts(value);
+  if (!parts) {
     return { date: "", time: "" };
   }
   const pad = (n) => String(n).padStart(2, "0");
   return {
-    date: `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`,
-    time: `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`,
+    date: formatDateParts(parts),
+    time: `${pad(parts.hour)}:${pad(parts.minute)}:${pad(parts.second)}`,
   };
+}
+
+function buildDisplayTimeFilenameStamp(value = new Date()) {
+  const parts = getDisplayTimeParts(value);
+  if (!parts) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${parts.year}${pad(parts.month)}${pad(parts.day)}_${pad(parts.hour)}${pad(parts.minute)}${pad(parts.second)}`;
 }
 
 function getClimateLogTime(entry) {
@@ -1643,13 +1747,11 @@ function downloadPurchasesCsv() {
     ].join(",");
   });
 
-  const csv = ["Locker number,Date,Time,Price", ...rows].join("\r\n");
+  const csv = [`Locker number,Date,Time (${DISPLAY_TIME_ZONE_LABEL}),Price`, ...rows].join("\r\n");
   const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
 
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const stamp = buildDisplayTimeFilenameStamp();
   const periodSafe = period.replace(/[^a-z0-9_-]/gi, "_");
   const machineSafe = state.selectedMachineId ? `machine_${state.selectedMachineId}` : "machine";
   const filename = `purchases_${machineSafe}_${periodSafe}_${stamp}.csv`;
@@ -1709,13 +1811,11 @@ function downloadClimateCsv() {
     ].join(",");
   });
 
-  const csv = ["Climate log id,Machine id,Sensor id,Date,Time,Temperature,Humidity,Fan mode,Set temp", ...rows].join("\r\n");
+  const csv = [`Climate log id,Machine id,Sensor id,Date,Time (${DISPLAY_TIME_ZONE_LABEL}),Temperature,Humidity,Fan mode,Set temp`, ...rows].join("\r\n");
   const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
 
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const stamp = buildDisplayTimeFilenameStamp();
   const periodSafe = period.replace(/[^a-z0-9_-]/gi, "_");
   const machineSafe = state.selectedMachineId ? `machine_${state.selectedMachineId}` : "machine";
   const filename = `climate_sensor${selectedSensorId}_${machineSafe}_${periodSafe}_${stamp}.csv`;
@@ -2267,11 +2367,14 @@ function humanizeKey(key) {
 
 function toLocalTime(value) {
   if (!value) return "-";
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) {
+  const dt = parseDateMaybe(value);
+  if (!dt) {
     return String(value);
   }
-  return dt.toLocaleString();
+  return dt.toLocaleString(undefined, {
+    timeZone: DISPLAY_TIME_ZONE,
+    timeZoneName: "short",
+  });
 }
 
 function sleep(ms) {

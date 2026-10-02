@@ -11,7 +11,14 @@ const STORAGE_KEYS = {
   authRefreshToken: "authRefreshToken",
   authExpiresAt: "authExpiresAt",
   authEmail: "authEmail",
+  uiLanguage: "uiLanguage",
 };
+
+const i18n = window.AppI18n;
+
+function t(key, params = {}) {
+  return i18n ? i18n.translate(key, params) : String(key ?? "");
+}
 
 const COMMAND_IDS = {
   OPEN_LOCKER: 1,
@@ -75,6 +82,7 @@ function resolveInitialApiBaseUrl() {
 }
 
 const state = {
+  language: "ENG",
   apiBaseUrl: resolveInitialApiBaseUrl(),
   authConfig: {
     enabled: false,
@@ -259,8 +267,57 @@ const el = {
   purchaseLogs: document.getElementById("purchaseLogs"),
 };
 
+function applyUserLanguage(value, { persist = true, refresh = true } = {}) {
+  state.language = i18n ? i18n.setLanguage(value) : "ENG";
+  if (persist) {
+    localStorage.setItem(STORAGE_KEYS.uiLanguage, state.language);
+  }
+  i18n?.translateDocument(document);
+
+  const rangePicker = getStatsRangePickerInstance();
+  if (rangePicker) {
+    rangePicker.set("locale", buildFlatpickrLocale());
+    rangePicker.redraw();
+  }
+
+  if (!refresh) return;
+  updateStatsPeriodButtonLabel();
+  renderLightingModes();
+  renderFanButtons();
+  renderHeadlightButtons();
+  applyOpModeButtonState(state.opModeValue);
+  syncClimateSensorButtons();
+  setSelectedLockerText();
+  if (state.ui.temperatureModalOpen) renderTemperatureReadings();
+  state.chartRenderSignature = "";
+  state.latestRenderedStatsSignature = "";
+}
+
+function buildFlatpickrLocale() {
+  const locale = i18n?.locale || "en-GB";
+  const weekdayDate = new Date(Date.UTC(2023, 0, 1));
+  const weekdays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekdayDate);
+    date.setUTCDate(weekdayDate.getUTCDate() + index);
+    return date;
+  });
+  const months = Array.from({ length: 12 }, (_, index) => new Date(Date.UTC(2023, index, 1)));
+  return {
+    firstDayOfWeek: 1,
+    rangeSeparator: " → ",
+    weekdays: {
+      shorthand: weekdays.map((date) => new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(date)),
+      longhand: weekdays.map((date) => new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(date)),
+    },
+    months: {
+      shorthand: months.map((date) => new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(date)),
+      longhand: months.map((date) => new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(date)),
+    },
+  };
+}
+
 function formatMonthYearLabel(dateObj = new Date()) {
-  return dateObj.toLocaleDateString(undefined, {
+  return dateObj.toLocaleDateString(i18n?.locale || "en-GB", {
     month: "long",
     year: "numeric",
     timeZone: DISPLAY_TIME_ZONE,
@@ -271,12 +328,12 @@ function updateStatsPeriodButtonLabel() {
   if (!el.statsPeriodToggleBtn) return;
   const mode = String(el.statsPeriodSelect?.value || "this_month");
   if (mode === "today") {
-    el.statsPeriodToggleBtn.textContent = "Today";
+    el.statsPeriodToggleBtn.textContent = t("Today");
     syncStatsPeriodMenuActiveState();
     return;
   }
   if (mode === "yesterday") {
-    el.statsPeriodToggleBtn.textContent = "Yesterday";
+    el.statsPeriodToggleBtn.textContent = t("Yesterday");
     syncStatsPeriodMenuActiveState();
     return;
   }
@@ -298,14 +355,14 @@ function updateStatsPeriodButtonLabel() {
     return;
   }
   if (mode === "all_time") {
-    el.statsPeriodToggleBtn.textContent = "Total";
+    el.statsPeriodToggleBtn.textContent = t("Total");
     syncStatsPeriodMenuActiveState();
     return;
   }
   if (mode === "custom") {
     const from = String(el.statsCustomFrom?.value || "");
     const to = String(el.statsCustomTo?.value || "");
-    el.statsPeriodToggleBtn.textContent = from && to ? `${from} → ${to}` : "Custom range";
+    el.statsPeriodToggleBtn.textContent = from && to ? `${from} → ${to}` : t("Custom range");
     syncStatsPeriodMenuActiveState();
     return;
   }
@@ -526,9 +583,7 @@ function initStatsRangePicker() {
     appendTo: document.body,
     positionElement: el.statsPeriodToggleBtn || undefined,
     defaultDate: defaultDates.length ? defaultDates : undefined,
-    locale: {
-      rangeSeparator: " → ",
-    },
+    locale: buildFlatpickrLocale(),
     onReady(_selectedDates, _dateStr, instance) {
       ensureFlatpickrYearDropdown(instance);
     },
@@ -837,10 +892,11 @@ function getCurrentMachineCode() {
 
 function getTemperatureSensorLabel(sensorId) {
   if (/^M0*2$/.test(getCurrentMachineCode())) {
-    const meaning = ({ 1: "Automat", 2: "E-box", 3: "Outside" })[sensorId];
-    return meaning ? `Sensor ${sensorId} — ${meaning}` : `Sensor ${sensorId}`;
+    const meaning = ({ 1: "Automat", 2: "E-box", 3: t("Outside") })[sensorId];
+    const sensor = t("Sensor {number}", { number: sensorId });
+    return meaning ? `${sensor} — ${meaning}` : sensor;
   }
-  return `Sensor ${sensorId}`;
+  return t("Sensor {number}", { number: sensorId });
 }
 
 function syncClimateSensorButtons() {
@@ -875,8 +931,8 @@ function renderTemperatureReadings() {
   const machineCode = getCurrentMachineCode();
   if (el.temperatureMachineText) {
     el.temperatureMachineText.textContent = machineCode
-      ? `${machineCode} · current sensor readings`
-      : "Current sensor readings";
+      ? t("{machine} · current sensor readings", { machine: machineCode })
+      : t("Current sensor readings");
   }
 
   el.temperatureReadings.innerHTML = "";
@@ -967,7 +1023,7 @@ function syncCollapsibleUi() {
 
 function normalizeLockerLabel(lockerNumberOrId) {
   if (lockerNumberOrId === null || lockerNumberOrId === undefined || lockerNumberOrId === "") return "-";
-  return `Locker ${lockerNumberOrId}`;
+  return t("Locker {number}", { number: lockerNumberOrId });
 }
 
 function getCanvasDisplaySize(canvas, minWidth, minHeight) {
@@ -1401,7 +1457,7 @@ function setPurchaseLogsByBucket(bucketKey, bucketType = "day") {
     return dt && buildBucketKey(dt, bucketType) === bucketKey;
   });
   renderPurchaseLogs(filtered);
-  setStatus(`Showing ${filtered.length} purchases for ${bucketKey}.`, true);
+  setStatus(t("Showing {count} purchases for {bucket}.", { count: filtered.length, bucket: bucketKey }), true);
 }
 
 function setPurchaseLogsByLocker(lockerKey) {
@@ -1412,7 +1468,7 @@ function setPurchaseLogsByLocker(lockerKey) {
   const key = String(lockerKey || "").trim();
   if (!key) {
     renderPurchaseLogs(all);
-    setStatus(`Showing ${all.length} purchases.`, true);
+    setStatus(t("Showing {count} purchases.", { count: all.length }), true);
     return;
   }
 
@@ -1421,7 +1477,7 @@ function setPurchaseLogsByLocker(lockerKey) {
     return String(lockerNumber) === key;
   });
   renderPurchaseLogs(filtered);
-  setStatus(`Showing ${filtered.length} purchases for locker ${key}.`, true);
+  setStatus(t("Showing {count} purchases for locker {locker}.", { count: filtered.length, locker: key }), true);
 }
 
 function bindCanvasPointClicks(canvas, chartMeta, dayKeys, onPick) {
@@ -1764,7 +1820,7 @@ function downloadPurchasesCsv() {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 
-  setStatus(`Downloaded CSV with ${purchases.length} purchases.`, true);
+  setStatus(t("Downloaded CSV with {count} purchases.", { count: purchases.length }), true);
 }
 
 function downloadClimateCsv() {
@@ -1787,7 +1843,7 @@ function downloadClimateCsv() {
     });
 
   if (!climate.length) {
-    setStatus(`No climate logs found for selected period (sensor ${selectedSensorId}).`);
+  setStatus(t("No climate logs found for selected period (sensor {sensor}).", { sensor: selectedSensorId }));
     return;
   }
 
@@ -1828,7 +1884,7 @@ function downloadClimateCsv() {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 
-  setStatus(`Downloaded CSV with ${climate.length} climate logs (sensor ${selectedSensorId}).`, true);
+  setStatus(t("Downloaded CSV with {count} climate logs (sensor {sensor}).", { count: climate.length, sensor: selectedSensorId }), true);
 }
 
 function applyAdminStatsView() {
@@ -1885,13 +1941,13 @@ function applyAdminStatsView() {
     const rows = [
       {
         key: "purchases",
-        label: "Purchases",
+        label: t("Purchases"),
         value: String(purchases.length),
         chartMode: "purchases",
       },
       {
         key: "revenue_eur",
-        label: "Revenue Eur",
+        label: t("Revenue Eur"),
         value: Number(totalRevenue.toFixed(2)).toFixed(2),
         chartMode: "revenue",
       },
@@ -1920,10 +1976,10 @@ function applyAdminStatsView() {
     avg_humidity: Number(avg(hums).toFixed(2)),
     min_humidity: Number(min(hums).toFixed(2)),
     max_humidity: Number(max(hums).toFixed(2)),
-  }), state.stats.climateLoadError || "No climate data for selected period.");
+  }), state.stats.climateLoadError || t("No climate data for selected period."));
 
   const purchasesSeries = aggregateLockerRevenue(purchases);
-  const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, "Revenue share by locker");
+  const purchasesMeta = drawSimplePie(el.purchasesChart, purchasesSeries.labels, purchasesSeries.values, t("Revenue share by locker"));
 
   const revenueSeries = bucketByDate(purchases, (x) => Number(x.amount || 0), { mode: "line" });
   const revenueMeta = drawSimpleLine(el.revenueChart, revenueSeries.labels, revenueSeries.values, "#2fa46b", "");
@@ -1940,7 +1996,7 @@ function applyAdminStatsView() {
   );
   const sensorLabel = getTemperatureSensorLabel(selectedSensorId);
   if (el.temperatureChartTitle) {
-    el.temperatureChartTitle.textContent = `${sensorLabel} temperature (°C)`;
+    el.temperatureChartTitle.textContent = t("{sensor} temperature (°C)", { sensor: sensorLabel });
   }
   drawSimpleLine(
     el.temperatureChart,
@@ -1962,7 +2018,7 @@ function applyAdminStatsView() {
     }
   );
   if (el.humidityChartTitle) {
-    el.humidityChartTitle.textContent = `${sensorLabel} humidity (%)`;
+    el.humidityChartTitle.textContent = t("{sensor} humidity (%)", { sensor: sensorLabel });
   }
   drawSimpleLine(
     el.humidityChart,
@@ -2024,7 +2080,7 @@ function drawSimplePie(canvas, labels, values, title = "") {
     ctx.fill();
     ctx.fillStyle = "#54637e";
     ctx.font = "12px Segoe UI";
-    ctx.fillText("No data", cx - 18, cy + 4);
+    ctx.fillText(t("No data"), cx - 18, cy + 4);
     return { slices: [] };
   }
 
@@ -2069,7 +2125,7 @@ function drawSimplePie(canvas, labels, values, title = "") {
 
 function setAuthStatus(message, ok = false) {
   if (!el.authStatus) return;
-  el.authStatus.textContent = message;
+  el.authStatus.textContent = t(message);
   el.authStatus.classList.remove("ok", "error");
   if (message) {
     el.authStatus.classList.add(ok ? "ok" : "error");
@@ -2247,7 +2303,7 @@ async function refreshCognitoSession() {
 }
 
 function setStatus(message, ok = false) {
-  el.statusBar.textContent = message;
+  el.statusBar.textContent = t(message);
   el.statusBar.classList.remove("ok", "error");
   if (message) {
     el.statusBar.classList.add(ok ? "ok" : "error");
@@ -2372,7 +2428,7 @@ function toLocalTime(value) {
     return String(value);
   }
   const parts = getDisplayTimeParts(dt);
-  const date = dt.toLocaleDateString(undefined, {
+  const date = dt.toLocaleDateString(i18n?.locale || "en-GB", {
     timeZone: DISPLAY_TIME_ZONE,
     year: "numeric",
     month: "numeric",
@@ -2584,14 +2640,14 @@ async function processPendingVerifications() {
       setFailedControls(keys, true);
       setPendingControls(keys, false);
       const label = keys.includes("setPrice") ? "Price" : statusLabel;
-      setStatus(`${label} not confirmed after ${MAX_VERIFICATION_SEND_ATTEMPTS} tries.`, false);
+      setStatus(`${t(label)}: ${t("not confirmed after {count} tries.", { count: MAX_VERIFICATION_SEND_ATTEMPTS })}`, false);
       scheduleDebouncedDashboardRefresh({
         delayMs: getVerificationDelayMs(attemptCount + 1),
       });
       continue;
     }
 
-    setStatus(`${statusLabel} mismatch detected. Retrying...`, true);
+    setStatus(`${t(statusLabel)}: ${t("mismatch detected. Retrying...")}`, true);
 
     let retryError = null;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -2618,7 +2674,7 @@ async function processPendingVerifications() {
       }
       setFailedControls(keys, true);
       setPendingControls(keys, false);
-      setStatus(`${statusLabel} retry failed: ${retryError.message}`, false);
+      setStatus(`${t(statusLabel)}: ${t("retry failed")}: ${retryError.message}`, false);
       scheduleDebouncedDashboardRefresh({
         delayMs: getVerificationDelayMs(attemptCount + 1),
       });
@@ -2668,7 +2724,7 @@ function scheduleDebouncedDashboardRefresh(options = {}) {
     try {
       await loadDashboard({ quiet: true });
     } catch (error) {
-      setStatus(`Dashboard refresh failed: ${error.message}`);
+      setStatus(`${t("Dashboard refresh failed")}: ${error.message}`);
     } finally {
       if (clearPendingKeys && clearPendingKeys.length) {
         setPendingControls(clearPendingKeys, false);
@@ -2740,7 +2796,7 @@ function buildInfoEntriesFromObject(obj, preferredOrder = []) {
     let value = raw;
     if (typeof raw === "boolean" || booleanLikeKeys.has(key)) {
       const boolValue = coerceBoolean(raw);
-      value = key === "op_mode" ? (boolValue ? "ON" : "OFF") : (boolValue ? "Yes" : "No");
+      value = key === "op_mode" ? (boolValue ? t("On") : t("Off")) : (boolValue ? t("Yes") : t("No"));
     } else if (/(_at|_time|heartbeat)$/i.test(key)) {
       value = toLocalTime(raw);
     } else if (typeof raw === "number") {
@@ -2748,7 +2804,7 @@ function buildInfoEntriesFromObject(obj, preferredOrder = []) {
     }
 
     entries.push({
-      label: humanizeKey(key),
+      label: t(humanizeKey(key)),
       value: toDisplay(value),
     });
   });
@@ -2773,7 +2829,7 @@ function renderInfoList(target, entries, emptyText = "-") {
 
     const label = document.createElement("div");
     label.className = "info-label";
-    label.textContent = entry.label;
+    label.textContent = t(entry.label);
 
     const value = document.createElement("div");
     value.className = "info-value";
@@ -2802,17 +2858,17 @@ function getUserDisplayName(userId, explicitName = "", explicitSurname = "") {
   const explicit = formatUserFullName(explicitName, explicitSurname);
   if (explicit) return explicit;
 
-  if (!Number.isInteger(Number(userId))) return "System";
+  if (!Number.isInteger(Number(userId))) return t("System");
   const numericUserId = Number(userId);
   const user = state.users.find((item) => Number(item.user_id) === numericUserId);
-  if (!user) return "Unknown user";
+  if (!user) return t("Unknown user");
 
-  return formatUserFullName(user.name, user.surname) || "Unknown user";
+  return formatUserFullName(user.name, user.surname) || t("Unknown user");
 }
 
 function splitDisplayName(name) {
   const clean = String(name || "").trim();
-  if (!clean) return { first: "System", last: "" };
+  if (!clean) return { first: t("System"), last: "" };
   const chunks = clean.split(/\s+/);
   if (chunks.length === 1) return { first: chunks[0], last: "" };
   return {
@@ -2823,7 +2879,7 @@ function splitDisplayName(name) {
 
 function formatCommandValue(value) {
   if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "boolean") return value ? "ON" : "OFF";
+  if (typeof value === "boolean") return value ? t("On") : t("Off");
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "-";
   return String(value);
 }
@@ -2846,10 +2902,10 @@ function commandLabelShort(commandKey, commandId = null) {
     set_head_lights: "Head lights",
   };
 
-  if (key && map[key]) return map[key];
-  if (key) return humanizeKey(key);
+  if (key && map[key]) return t(map[key]);
+  if (key) return t(humanizeKey(key));
   if (Number.isInteger(Number(commandId)) && Number(commandId) > 0) return `Cmd #${Number(commandId)}`;
-  return "Action";
+  return t("Action");
 }
 
 function buildCompactActivityText(log, activityData) {
@@ -2887,57 +2943,57 @@ function buildCompactActivityText(log, activityData) {
   if (commandKey === "set_locker_price" && field === "price") {
     const fromValue = formatCommandValue(before);
     const toValue = formatCommandValue(after);
-    return `Price${lockerPart}: ${fromValue}→${toValue}`;
+    return `${t("Price")}${lockerPart}: ${fromValue}→${toValue}`;
   }
 
   if (commandKey === "set_temperature" && field === "set_temperature") {
-    return `Temp: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+    return `${t("Temp")}: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
   }
 
   if (commandKey === "set_fans" && field === "fan_mode") {
-    return `Fans: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+    return `${t("Fans")}: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
   }
 
   if (commandKey === "set_operation_mode" && field === "op_mode") {
-    return `Op mode: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+    return `${t("Op mode")}: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
   }
 
   if (commandKey === "set_head_lights" && field === "head_lights") {
-    return `Head lights: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+    return `${t("Head lights")}: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
   }
 
   if (commandKey === "set_lighting_mode" && field === "lighting_mode") {
-    return `Light mode${lockerPart}: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
+    return `${t("Light mode")}${lockerPart}: ${formatCommandValue(before)}→${formatCommandValue(after)}`;
   }
 
   if (commandKey === "set_locker_color" && field === "color_rgb" && before && after) {
     const fromRgb = `${formatCommandValue(before.color_r)},${formatCommandValue(before.color_g)},${formatCommandValue(before.color_b)}`;
     const toRgb = `${formatCommandValue(after.color_r)},${formatCommandValue(after.color_g)},${formatCommandValue(after.color_b)}`;
-    return `Color${lockerPart}: ${fromRgb}→${toRgb}`;
+    return `${t("Color")}${lockerPart}: ${fromRgb}→${toRgb}`;
   }
 
   if (commandKey === "open_locker") {
-    return `Open${lockerPart}`;
+    return `${t("Open")}${lockerPart}`;
   }
 
   if (commandKey === "check_locker_closed") {
-    return `Close check${lockerPart}`;
+    return `${t("Close check")}${lockerPart}`;
   }
 
   if (phase === "publish_failed" || result === "failed" || result === "error") {
-    return `${label}${lockerPart}: failed`;
+    return `${label}${lockerPart}: ${t("failed")}`;
   }
 
   if (phase === "pending_publish") {
-    return `${label}${lockerPart}: pending`;
+    return `${label}${lockerPart}: ${t("pending")}`;
   }
 
   if (phase === "sent") {
-    return `${label}${lockerPart}: sent`;
+    return `${label}${lockerPart}: ${t("sent")}`;
   }
 
   if (phase === "ack" && result === "success") {
-    return `${label}${lockerPart}: done`;
+    return `${label}${lockerPart}: ${t("done")}`;
   }
 
   return buildActivityText(log, activityData);
@@ -2974,7 +3030,7 @@ function renderActivityLogs(logs) {
     const cell = document.createElement("td");
     cell.colSpan = 3;
     cell.className = "table-empty";
-    cell.textContent = "No activity logs found.";
+    cell.textContent = t("No activity logs found.");
     row.appendChild(cell);
     el.activityLogs.appendChild(row);
     return;
@@ -3037,13 +3093,13 @@ function buildErrorLogDetails(log) {
 
   if (errorKey === "locker_not_closed") {
     return lockerLabel
-      ? `${lockerLabel} opened for at least 1 min.`
-      : "Locker opened for at least 1 min.";
+      ? t("{locker} opened for at least 1 min.", { locker: lockerLabel })
+      : t("Locker opened for at least 1 min.");
   }
 
   if (lockerLabel) {
-    if (errorKey === "locker_jammed") return `${lockerLabel} jammed.`;
-    if (errorKey === "locker_disconnected") return `${lockerLabel} disconnected.`;
+    if (errorKey === "locker_jammed") return t("{locker} jammed.", { locker: lockerLabel });
+    if (errorKey === "locker_disconnected") return t("{locker} disconnected.", { locker: lockerLabel });
 
     const contextualDescription = description
       .replace(/^The locker\b/i, lockerLabel)
@@ -3068,7 +3124,7 @@ function buildErrorLogDetails(log) {
     return `${device}: ${description}`;
   }
 
-  return description;
+  return t(description);
 }
 
 async function markErrorLogRead(log, row) {
@@ -3087,7 +3143,7 @@ async function markErrorLogRead(log, row) {
     row.removeAttribute("role");
     row.removeAttribute("aria-label");
     row.removeAttribute("title");
-    setStatus("Error marked as read.", true);
+    setStatus(t("Error marked as read."), true);
   } catch (error) {
     const message = String(error?.message || error);
     const routeUnavailable = /Network\/CORS error|Failed to fetch/i.test(message);
@@ -3110,7 +3166,7 @@ function renderErrorLogs(logs, loadError = "") {
     const cell = document.createElement("td");
     cell.colSpan = 3;
     cell.className = "table-empty";
-    cell.textContent = loadError || "No recent errors found.";
+    cell.textContent = loadError || t("No recent errors found.");
     row.appendChild(cell);
     el.errorLogs.appendChild(row);
     return;
@@ -3124,7 +3180,7 @@ function renderErrorLogs(logs, loadError = "") {
     whenCell.textContent = toLocalTime(log.logged_at);
 
     const errorCell = document.createElement("td");
-    errorCell.textContent = String(log.error_name || humanizeKey(log.error_key) || `Error #${log.error_id}`);
+    errorCell.textContent = t(String(log.error_name || humanizeKey(log.error_key) || `Error #${log.error_id}`));
 
     const detailsCell = document.createElement("td");
     detailsCell.textContent = buildErrorLogDetails(log);
@@ -3137,8 +3193,8 @@ function renderErrorLogs(logs, loadError = "") {
       row.classList.add("error-log-unread");
       row.tabIndex = 0;
       row.setAttribute("role", "button");
-      row.setAttribute("aria-label", `${errorCell.textContent}, unread. Mark as read.`);
-      row.title = "Mark as read";
+      row.setAttribute("aria-label", `${errorCell.textContent}, ${t("Mark as read")}.`);
+      row.title = t("Mark as read");
       row.addEventListener("click", () => markErrorLogRead(log, row));
       row.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -3160,7 +3216,7 @@ function renderPurchaseLogs(logs) {
     const cell = document.createElement("td");
     cell.colSpan = 3;
     cell.className = "table-empty";
-    cell.textContent = "No purchases found.";
+    cell.textContent = t("No purchases found.");
     row.appendChild(cell);
     el.purchaseLogs.appendChild(row);
     return;
@@ -3196,7 +3252,7 @@ function applyOpModeButtonState(opModeValue) {
   el.toggleOpModeBtn.classList.add(state.opModeValue ? "on" : "off");
   el.toggleOpModeBtn.classList.toggle("pending", hasPendingControl("opMode"));
   el.toggleOpModeBtn.classList.toggle("failed", hasFailedControl("opMode"));
-  el.toggleOpModeBtn.textContent = `Operation mode: ${state.opModeValue ? "ON" : "OFF"}`;
+  el.toggleOpModeBtn.textContent = t(`Operation mode: ${state.opModeValue ? "ON" : "OFF"}`);
 }
 
 function renderLightingModes() {
@@ -3209,13 +3265,13 @@ function renderLightingModes() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `lighting-mode-btn${state.lightingModeValue === mode.value ? " active" : ""}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
-    button.textContent = mode.label;
+    button.textContent = t(mode.label);
     button.addEventListener("click", () => {
       handleSetLightingMode(mode.value)
         .then((response) => {
           if (response) closeLockerCommands();
         })
-        .catch((e) => setStatus(`Set lighting failed: ${e.message}`));
+        .catch((e) => setStatus(`${t("Set lighting failed")}: ${e.message}`));
     });
     el.lightingModeButtons.appendChild(button);
   });
@@ -3233,9 +3289,9 @@ function renderFanButtons() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `state-btn ${state.fanStates[fan.key] ? "on" : "off"}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
-    button.textContent = fan.label;
+    button.textContent = t(fan.label);
     button.addEventListener("click", () => {
-      handleToggleFan(fan.key).catch((e) => setStatus(`Set fans failed: ${e.message}`));
+      handleToggleFan(fan.key).catch((e) => setStatus(`${t("Set fans failed")}: ${e.message}`));
     });
     el.fanButtons.appendChild(button);
   });
@@ -3243,9 +3299,9 @@ function renderFanButtons() {
   const autoButton = document.createElement("button");
   autoButton.type = "button";
   autoButton.className = `state-btn fan-auto ${state.fanStates.auto ? "on" : "off"}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
-  autoButton.textContent = "Auto";
+  autoButton.textContent = t("Auto");
   autoButton.addEventListener("click", () => {
-    handleSetFanAuto().catch((e) => setStatus(`Set fans failed: ${e.message}`));
+    handleSetFanAuto().catch((e) => setStatus(`${t("Set fans failed")}: ${e.message}`));
   });
   el.fanButtons.appendChild(autoButton);
 
@@ -3262,9 +3318,9 @@ function renderHeadlightButtons() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `state-btn ${state.headLightsValue === mode.value ? "on" : "off"}${pending ? " pending" : ""}${failed ? " failed" : ""}`;
-    button.textContent = mode.label;
+    button.textContent = t(mode.label);
     button.addEventListener("click", () => {
-      handleSetHeadLights(mode.value).catch((e) => setStatus(`Set head lights failed: ${e.message}`));
+      handleSetHeadLights(mode.value).catch((e) => setStatus(`${t("Set head lights failed")}: ${e.message}`));
     });
     el.headlightButtons.appendChild(button);
   });
@@ -3384,7 +3440,7 @@ function persistSelection() {
 }
 
 function resetDashboard() {
-  renderInfoList(el.adminStats, [], "Only shown for admin users.");
+  renderInfoList(el.adminStats, [], t("Only shown for admin users."));
   renderInfoList(el.adminClimateStats, [], "-");
   renderActivityLogs([]);
   renderErrorLogs([]);
@@ -3422,10 +3478,10 @@ function resetDashboard() {
 function setSelectedLockerText() {
   const locker = getSelectedLocker();
   if (!locker) {
-    el.selectedLockerText.textContent = "Locker";
+    el.selectedLockerText.textContent = t("Locker");
     return;
   }
-  el.selectedLockerText.textContent = `Locker ${locker.locker_number}`;
+  el.selectedLockerText.textContent = t("Locker {number}", { number: locker.locker_number });
 }
 
 function syncSelectedLockerFormFields() {
@@ -3470,10 +3526,10 @@ function lockerColorClass(locker) {
 }
 
 function lockerStateLabel(locker) {
-  if (lockerIsOpened(locker) && !coerceBoolean(locker.sold)) return "FREE";
-  if (lockerIsOpened(locker)) return "OPEN";
-  if (coerceBoolean(locker.sold)) return "SOLD";
-  return "FREE";
+  if (lockerIsOpened(locker) && !coerceBoolean(locker.sold)) return t("FREE");
+  if (lockerIsOpened(locker)) return t("OPEN");
+  if (coerceBoolean(locker.sold)) return t("SOLD");
+  return t("FREE");
 }
 
 function createLockerButton(locker, placement = null) {
@@ -3481,7 +3537,7 @@ function createLockerButton(locker, placement = null) {
   const placementClass = placement ? ` locker-size-${placement.size.toLowerCase()}` : "";
   button.type = "button";
   button.className = `locker-btn ${lockerColorClass(locker)}${placementClass}${lockerIsOpened(locker) ? " opened-text" : ""}`;
-  button.setAttribute("aria-label", `Locker ${locker.locker_number}, ${lockerStateLabel(locker).toLowerCase()}`);
+  button.setAttribute("aria-label", `${t("Locker {number}", { number: locker.locker_number })}, ${lockerStateLabel(locker).toLowerCase()}`);
   button.innerHTML = placement
     ? `<span>${locker.locker_number}</span>`
     : `<span>L${locker.locker_number}</span><small>${lockerStateLabel(locker)}</small>`;
@@ -3582,7 +3638,7 @@ function renderLockers() {
   el.lockerGrid.innerHTML = "";
   el.lockerGrid.classList.remove("has-placement");
   if (!state.lockers.length) {
-    el.lockerGrid.innerHTML = "<p class='subtle'>No lockers found for this machine.</p>";
+    el.lockerGrid.innerHTML = `<p class='subtle'>${t("No lockers found for this machine.")}</p>`;
     state.selectedLockerId = null;
     closeLockerCommands();
     setSelectedLockerText();
@@ -3605,7 +3661,7 @@ function renderLockers() {
 }
 
 function populateUsers() {
-  el.userSelect.innerHTML = "<option value=''>Choose user</option>";
+  el.userSelect.innerHTML = `<option value=''>${t("Choose user")}</option>`;
   state.users.forEach((user) => {
     const option = document.createElement("option");
     option.value = String(user.user_id);
@@ -3619,7 +3675,7 @@ function populateUsers() {
 }
 
 function populateMachines() {
-  el.machineSelect.innerHTML = "<option value=''>Choose machine</option>";
+  el.machineSelect.innerHTML = `<option value=''>${t("Choose machine")}</option>`;
   state.allowedMachines.forEach((item) => {
     const option = document.createElement("option");
     option.value = String(item.machine.machine_id);
@@ -3641,7 +3697,7 @@ async function fetchMembershipForCompany(companyId) {
 function withBusyAction(actionLabel, fn) {
   state.activeCommandCount += 1;
   if (state.activeCommandCount === 1) {
-    setStatus(`${actionLabel}...`, true);
+    setStatus(`${t(actionLabel)}...`, true);
   }
   syncBusyUi();
 
@@ -3743,12 +3799,12 @@ async function sendCommandAndRefresh(commandId, params = {}, lockerId = null, st
 
     const requestId = response?.request_id ? ` request_id=${response.request_id}` : "";
     if (refreshError) {
-      setStatus(`${statusLabel} command sent.${requestId} Dashboard refresh delayed.`, true);
+      setStatus(`${t(statusLabel)}: ${t("command sent.")}${requestId} ${t("Dashboard refresh delayed.")}`, true);
       window.setTimeout(() => {
         loadDashboard({ quiet: true }).catch(() => {});
       }, 1500);
     } else {
-      setStatus(`${statusLabel} command sent.${requestId}`, true);
+      setStatus(`${t(statusLabel)}: ${t("command sent.")}${requestId}`, true);
     }
 
     return response;
@@ -3825,7 +3881,7 @@ async function sendCommandAndDebouncedRefresh(
   }
 
   const requestId = rawRequestId ? ` request_id=${rawRequestId}` : "";
-  setStatus(`${statusLabel} command sent.${requestId}`, true);
+  setStatus(`${t(statusLabel)}: ${t("command sent.")}${requestId}`, true);
   return response;
 }
 
@@ -3847,7 +3903,7 @@ async function loadInitial() {
   state.users = users;
   state.machines = machines;
   populateUsers();
-  setStatus(`Loaded ${users.length} users and ${machines.length} machines.`, true);
+  setStatus(t("Loaded {users} users and {machines} machines.", { users: users.length, machines: machines.length }), true);
 }
 
 async function loadAuthConfig() {
@@ -3917,6 +3973,7 @@ async function bootstrapAuthenticatedApp() {
     throw new Error("Authenticated user profile is unavailable.");
   }
 
+  applyUserLanguage(session.user.language || "ENG", { refresh: false });
   await loadInitial();
 
   const authUserId = Number(session.user.user_id);
@@ -3937,12 +3994,13 @@ async function bootstrapAuthenticatedApp() {
 
   state.auth.isAuthenticated = true;
   setAuthLayoutVisible(true);
+  applyUserLanguage(session.user.language || "ENG");
   state.ui.lightingCollapsed = true;
   state.ui.machineCommandsCollapsed = false;
   state.ui.climateCollapsed = true;
   syncCollapsibleUi();
   const signedInLabel = getSignedInUserLabel() || authUserEmail || "authenticated user";
-  setAuthStatus(`Signed in as ${signedInLabel}.`, true);
+  setAuthStatus(t("Signed in as {user}.", { user: signedInLabel }), true);
   syncBusyUi();
 }
 
@@ -4029,9 +4087,9 @@ function handleSignOut() {
   state.selectedCompanyId = null;
   state.selectedRole = null;
 
-  el.userSelect.innerHTML = "<option value=''>Choose user</option>";
+  el.userSelect.innerHTML = `<option value=''>${t("Choose user")}</option>`;
   el.userSelect.disabled = true;
-  el.machineSelect.innerHTML = "<option value=''>Choose machine</option>";
+  el.machineSelect.innerHTML = `<option value=''>${t("Choose machine")}</option>`;
   el.machineSelect.disabled = true;
 
   localStorage.removeItem(STORAGE_KEYS.selectedUserId);
@@ -4081,7 +4139,7 @@ async function onUserSelected() {
   }
 
   persistSelection();
-  setStatus(`Loaded ${allowed.length} allowed machines for selected user.`, true);
+  setStatus(t("Loaded {count} allowed machines for selected user.", { count: allowed.length }), true);
 }
 
 function onMachineSelected() {
@@ -4219,7 +4277,7 @@ async function loadDashboard(options = {}) {
       applyAdminStatsView();
     }
   } else {
-    renderInfoList(el.adminStats, [], "Only shown for admin users.");
+    renderInfoList(el.adminStats, [], t("Only shown for admin users."));
   }
 
   if (!quiet) {
@@ -4695,15 +4753,15 @@ function wireEvents() {
 
   el.userSelect.addEventListener("change", () => {
     if (!state.auth.isAuthenticated) return;
-    onUserSelected().catch((e) => setStatus(`Failed to load user machines: ${e.message}`));
+    onUserSelected().catch((e) => setStatus(`${t("Failed to load user machines")}: ${e.message}`));
   });
 
   el.machineSelect.addEventListener("change", () => {
     onMachineSelected();
     if (!state.selectedMachineId) return;
-    loadDashboard().catch((e) => setStatus(`Failed to load selected machine: ${e.message}`));
+    loadDashboard().catch((e) => setStatus(`${t("Failed to load selected machine")}: ${e.message}`));
   });
-  el.loadBtn.addEventListener("click", () => loadDashboard().catch((e) => setStatus(`Failed to load dashboard: ${e.message}`)));
+  el.loadBtn.addEventListener("click", () => loadDashboard().catch((e) => setStatus(`${t("Failed to load dashboard")}: ${e.message}`)));
   if (el.clearBtn) {
     el.clearBtn.addEventListener("click", clearAll);
   }
@@ -4714,15 +4772,15 @@ function wireEvents() {
         .then((response) => {
           if (response) closeLockerCommands();
         })
-        .catch((e) => setStatus(`${errorLabel}: ${e.message}`));
+        .catch((e) => setStatus(`${t(errorLabel)}: ${e.message}`));
     });
   };
   wireLockerCommand(el.openLockerBtn, handleOpenLocker, "Open locker failed");
   wireLockerCommand(el.setPriceBtn, handleSetPrice, "Set price failed");
   wireLockerCommand(el.setColorBtn, handleSetColor, "Set color failed");
   wireLockerCommand(el.setColorAllBtn, handleSetColorAll, "Set all colors failed");
-  el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`Set temperature failed: ${e.message}`)));
-  el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`Set operation mode failed: ${e.message}`)));
+  el.setTempBtn.addEventListener("click", () => handleSetTemperature().catch((e) => setStatus(`${t("Set temperature failed")}: ${e.message}`)));
+  el.toggleOpModeBtn.addEventListener("click", () => handleToggleOperationMode().catch((e) => setStatus(`${t("Set operation mode failed")}: ${e.message}`)));
 
   if (el.colorPicker) {
     const syncPickerFromRgb = () => {
@@ -4907,7 +4965,7 @@ function wireEvents() {
       if (!state.auth.isAuthenticated || !state.selectedUserId || !state.selectedMachineId) return;
       if (!state.ui.navigationRefreshPromise) {
         state.ui.navigationRefreshPromise = loadDashboard()
-          .catch((error) => setStatus(`Failed to refresh dashboard: ${error.message || error}`))
+          .catch((error) => setStatus(`${t("Failed to refresh dashboard")}: ${error.message || error}`))
           .finally(() => {
             state.ui.navigationRefreshPromise = null;
             setActiveView(state.ui.activeView);
@@ -4948,8 +5006,8 @@ function wireEvents() {
   if (el.signInBtn) {
     el.signInBtn.addEventListener("click", () => {
       handleSignIn().catch((e) => {
-        setAuthStatus(`Sign-in failed: ${e.message}`);
-        setStatus(`Sign-in failed: ${e.message}`);
+        setAuthStatus(`${t("Sign-in failed")}: ${e.message}`);
+        setStatus(`${t("Sign-in failed")}: ${e.message}`);
         syncBusyUi();
       });
     });
@@ -4958,8 +5016,8 @@ function wireEvents() {
   if (el.setNewPasswordBtn) {
     el.setNewPasswordBtn.addEventListener("click", () => {
       handleSetNewPassword().catch((e) => {
-        setAuthStatus(`Set password failed: ${e.message}`);
-        setStatus(`Set password failed: ${e.message}`);
+        setAuthStatus(`${t("Set password failed")}: ${e.message}`);
+        setStatus(`${t("Set password failed")}: ${e.message}`);
         syncBusyUi();
       });
     });
@@ -4974,8 +5032,8 @@ function wireEvents() {
       if (event.key !== "Enter") return;
       event.preventDefault();
       handleSignIn().catch((e) => {
-        setAuthStatus(`Sign-in failed: ${e.message}`);
-        setStatus(`Sign-in failed: ${e.message}`);
+        setAuthStatus(`${t("Sign-in failed")}: ${e.message}`);
+        setStatus(`${t("Sign-in failed")}: ${e.message}`);
         syncBusyUi();
       });
     });
@@ -4986,8 +5044,8 @@ function wireEvents() {
       if (event.key !== "Enter") return;
       event.preventDefault();
       handleSetNewPassword().catch((e) => {
-        setAuthStatus(`Set password failed: ${e.message}`);
-        setStatus(`Set password failed: ${e.message}`);
+        setAuthStatus(`${t("Set password failed")}: ${e.message}`);
+        setStatus(`${t("Set password failed")}: ${e.message}`);
         syncBusyUi();
       });
     });
@@ -4995,6 +5053,10 @@ function wireEvents() {
 }
 
 async function init() {
+  applyUserLanguage(localStorage.getItem(STORAGE_KEYS.uiLanguage) || "ENG", {
+    persist: false,
+    refresh: false,
+  });
   wireEvents();
   renderLightingModes();
   renderFanButtons();
@@ -5045,7 +5107,7 @@ async function init() {
         resetAuthState();
         setNewPasswordChallengeVisible(false);
         setStatus("Stored session is invalid. Please sign in again.");
-        setAuthStatus(`Session reset: ${e.message}`);
+        setAuthStatus(`${t("Session reset")}: ${e.message}`);
         setAuthLayoutVisible(false);
       }
     } else {
@@ -5054,8 +5116,8 @@ async function init() {
       setAuthLayoutVisible(false);
     }
   } catch (e) {
-    setStatus(`Failed to initialize frontend: ${e.message}`);
-    setAuthStatus(`Initialization failed: ${e.message}`);
+    setStatus(`${t("Failed to initialize frontend")}: ${e.message}`);
+    setAuthStatus(`${t("Initialization failed")}: ${e.message}`);
     setAuthLayoutVisible(false);
   }
 

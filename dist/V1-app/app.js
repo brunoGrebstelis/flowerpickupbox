@@ -981,7 +981,18 @@ function closeTemperatureModal() {
 
 function updateTopMachineStrip() {
   const status = state.machineStatus;
-  const rawTemp = status ? Number(status.current_temperature) : NaN;
+  const statusTemperature = status?.current_temperature;
+  let rawTemp = statusTemperature === null || statusTemperature === undefined || statusTemperature === ""
+    ? NaN
+    : Number(statusTemperature);
+  if (!Number.isFinite(rawTemp)) {
+    const latestSensorTemperature = getLatestClimateReading(1)?.temperature;
+    rawTemp = latestSensorTemperature === null
+      || latestSensorTemperature === undefined
+      || latestSensorTemperature === ""
+      ? NaN
+      : Number(latestSensorTemperature);
+  }
   if (el.topCurrentTemperature) {
     el.topCurrentTemperature.textContent = Number.isFinite(rawTemp)
       ? `${rawTemp.toFixed(1)} °C`
@@ -3946,14 +3957,17 @@ async function restoreAuthFromStorageAndRefreshIfNeeded() {
 
 async function restoreMachineSelectionAndAutoloadDashboard(preferredMachineIdRaw = null) {
   const storedMachineIdRaw = preferredMachineIdRaw ?? localStorage.getItem(STORAGE_KEYS.selectedMachineId);
-  if (!storedMachineIdRaw) return;
-
   const storedMachineId = Number(storedMachineIdRaw);
-  if (!Number.isInteger(storedMachineId)) return;
-  if (!state.allowedMachines.some((x) => Number(x.machine.machine_id) === storedMachineId)) return;
+  const storedMachineIsAllowed = Number.isInteger(storedMachineId)
+    && state.allowedMachines.some((x) => Number(x.machine.machine_id) === storedMachineId);
+  const fallbackMachineId = Number(state.allowedMachines[0]?.machine?.machine_id);
+  const machineId = storedMachineIsAllowed
+    ? storedMachineId
+    : (Number.isInteger(fallbackMachineId) ? fallbackMachineId : null);
+  if (!machineId) return;
 
-  state.selectedMachineId = storedMachineId;
-  el.machineSelect.value = String(storedMachineId);
+  state.selectedMachineId = machineId;
+  el.machineSelect.value = String(machineId);
   onMachineSelected();
   persistSelection();
   await loadDashboard();
